@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jjwxc-yuri-analytics"
+version = "0.1.0"
+description = "Private JJWXC yuri novel metadata snapshots, analytics, and visualization."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.16,<2",
+  "pydantic>=2.11,<3",
+  "SQLAlchemy>=2.0,<2.1",
+]
+
+[project.optional-dependencies]
+api = [
+  "fastapi>=0.140,<0.141",
+  "uvicorn>=0.51,<0.52",
+]
+postgres = [
+  "psycopg[binary]>=3.2,<4",
+]
+pixiv-app-api = [
+  "pixivpy3==3.7.5",
+]
+dev = [
+  "httpx2>=2,<3",
+  "pytest>=8.4,<9",
+  "pytest-cov>=6.2,<7",
+  "mypy>=1.17,<2",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+pyuri-api = "pixiv_yuri.api.cli:main"
+pyuri-api-contract = "pixiv_yuri.api.contract:main"
+pyuri-consumer-controls-smoke = "pixiv_yuri.api.consumer_controls_smoke:main"
+pyuri-tls-smoke = "pixiv_yuri.api.tls_smoke:main"
+pyuri-identity-smoke = "pixiv_yuri.api.identity_smoke:main"
+pyuri-phase2-review = "pixiv_yuri.api.phase2_review:main"
+pyuri-publication-review = "pixiv_yuri.api.publication_review:main"
+pyuri-publication-evidence = "pixiv_yuri.api.publication_evidence:main"
+pyuri-tag-review = "pixiv_yuri.analytics.tag_review:main"
+pyuri-phase5-review = "pixiv_yuri.analytics.phase5_review:main"
+pyuri-deployment-readiness = "pixiv_yuri.deployment.readiness:main"
+pyuri-production-evidence = "pixiv_yuri.deployment.production_evidence:main"
+pyuri-production-publication-binding = "pixiv_yuri.deployment.production_publication_binding:main"
+pyuri-g0 = "pixiv_yuri.governance.cli:main"
+pyuri-source-endpoint-review = "pixiv_yuri.governance.source_endpoint_review:main"
+pyuri-first-request-gate = "pixiv_yuri.governance.first_request_gate:main"
+pyuri-launch-review = "pixiv_yuri.governance.launch_review:main"
+pyuri-session-preflight = "pixiv_yuri.governance.session_cli:main"
+pyuri-schema-probe = "pixiv_yuri.schema_probe.cli:main"
+pyuri-db = "pixiv_yuri.ingest.cli:main"
+pyuri-import-browser-export = "pixiv_yuri.acquisition.browser_export_import:main"
+pyuri-pixiv-app-api = "pixiv_yuri.acquisition.providers.pixiv_app_api:main"
+pyuri-review-browser-candidate = "pixiv_yuri.governance.candidate_import_review:main"
+pyuri-review-candidate = "pixiv_yuri.governance.candidate_import_review:main"
+jjyuri-jjwxc-probe = "pixiv_yuri.jjwxc.public_probe:main"
+jjyuri-jjwxc-daily = "pixiv_yuri.jjwxc.ranking_collector:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pixiv_yuri = ["py.typed", "jjwxc/*.json"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["build", "src/pixiv_yuri_analytics.egg-info"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["pixiv_yuri"]

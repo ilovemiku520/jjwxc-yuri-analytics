@@ -1,0 +1,31 @@
+{
+  "policy_version": 1,
+  "scope": "offline_fixture",
+  "provider": "synthetic_fixture",
+  "entries": [
+    {
+      "entity_type": "author",
+      "fingerprint": "101f506e72bf4e7a261a55a39b8fa36b9676deef2f0127f2f266ecaf0a4a289c",
+      "decision": "approved",
+      "parser_id": "fixture_object",
+      "parser_version": "0.1.0",
+      "note": "Synthetic regression fixture only; this is not production G1 approval."
+    },
+    {
+      "entity_type": "work",
+      "fingerprint": "2f0bf2a005e29e56f149363bf1172a126cf8f8145dd2e53e336ed2214bacc901",
+      "decision": "approved",
+      "parser_id": "fixture_object",
+      "parser_version": "0.1.0",
+      "note": "Synthetic regression fixture only; this is not production G1 approval."
+    },
+    {
+      "entity_type": "work",
+      "fingerprint": "c2407c465466981cb595913a10038fa8910e40a0b3b08588874fe6ad8e4fa7ed",
+      "decision": "approved",
+      "parser_id": "fixture_object",
+      "parser_version": "0.1.0",
+      "note": "Synthetic regression fixture only; this is not production G1 approval."
+    }
+  ]
+}

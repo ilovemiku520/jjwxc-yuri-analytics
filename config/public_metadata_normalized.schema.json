@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:pyuri:public-metadata-normalized:v1",
+  "title": "Sanitized public metadata record",
+  "description": "Field-only normalized schema. It contains no source URL, account identifier, Cookie, token, response body or media location.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "work_id",
+    "work_title",
+    "author_id",
+    "author_display_name",
+    "public_tags",
+    "created_at",
+    "page_count",
+    "width",
+    "height",
+    "public_view_count",
+    "public_bookmark_count",
+    "public_like_count"
+  ],
+  "properties": {
+    "work_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "work_title": { "type": "string", "maxLength": 500 },
+    "author_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "author_display_name": { "type": "string", "maxLength": 200 },
+    "public_tags": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tag_name"],
+        "properties": {
+          "tag_name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "tag_translation": { "type": ["string", "null"], "maxLength": 200 }
+        }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "page_count": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "width": { "type": "integer", "minimum": 1, "maximum": 100000 },
+    "height": { "type": "integer", "minimum": 1, "maximum": 100000 },
+    "public_view_count": { "type": ["integer", "null"], "minimum": 0 },
+    "public_bookmark_count": { "type": ["integer", "null"], "minimum": 0 },
+    "public_like_count": { "type": ["integer", "null"], "minimum": 0 }
+  }
+}

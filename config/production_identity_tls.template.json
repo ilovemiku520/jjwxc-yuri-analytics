@@ -1,0 +1,34 @@
+{
+  "accountable_owner": "change-me",
+  "deployment_id": "production-draft",
+  "deployment_kind": "production",
+  "expires_at": "2026-09-22T00:00:00+00:00",
+  "identity": {
+    "adapter": "trusted_hmac_proxy",
+    "assertion_max_age_seconds": 300,
+    "deployment_reference": "draft",
+    "direct_api_access_blocked": false,
+    "health_monitoring_enabled": false,
+    "product": "unconfigured",
+    "production_smoke_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "proxy_id": "private-edge",
+    "secret_delivery": "unconfigured",
+    "secret_rotation_days": 365
+  },
+  "reviewed_at": "2026-08-23T00:00:00+00:00",
+  "reviewer": "change-me",
+  "status": "draft",
+  "tls": {
+    "automated_renewal": false,
+    "certificate_authority": "unconfigured",
+    "certificate_not_after": "2026-09-22T00:00:00+00:00",
+    "certificate_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "hostname": "api.example.invalid",
+    "hsts_enabled": false,
+    "minimum_tls_version": "TLSv1.2",
+    "private_key_storage": "unconfigured",
+    "production_smoke_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "renewal_monitoring_enabled": false
+  },
+  "version": 1
+}

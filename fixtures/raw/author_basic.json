@@ -1,0 +1,14 @@
+{
+  "id": "synthetic-author-501",
+  "name": "Synthetic Author",
+  "profile": {
+    "bio": null,
+    "region": "synthetic-region"
+  },
+  "metrics": {
+    "followers": 250,
+    "works": 2
+  },
+  "links": []
+}
+

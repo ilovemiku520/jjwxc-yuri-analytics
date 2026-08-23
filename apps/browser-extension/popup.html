@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Pixiv 元数据采集助手</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">YURI CULTURAL INDEX · v0.4.0</p>
+      <h1>当前作品元数据</h1>
+      <p>请先由你本人登录 Pixiv，并打开一个可正常查看的作品页。</p>
+      <button id="export" type="button">导出当前作品 JSON</button>
+      <p id="status" role="status" aria-live="polite">尚未采集。</p>
+      <section aria-labelledby="boundary-title">
+        <h2 id="boundary-title">固定边界</h2>
+        <ul>
+          <li>不接收账号、密码、Cookie 或 Token</li>
+          <li>不发起 Pixiv 请求，不自动翻页</li>
+          <li>不导出图片、媒体地址或作品简介</li>
+          <li>仅限个人学习或研究，禁止商业用途及二次分发</li>
+        </ul>
+      </section>
+      <footer>个人开发者：ilovemiku520@outlook.com</footer>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

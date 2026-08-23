@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "provider": "synthetic_fixture",
+  "records": [
+    {
+      "entity_type": "work",
+      "source_id": "synthetic-work-1001",
+      "observed_at": "2026-08-01T00:00:00Z",
+      "path": "raw/work_basic.json",
+      "status_code": 200,
+      "content_type": "application/json",
+      "source_url": "https://example.invalid/works/1001",
+      "metadata": {
+        "fixture_version": 1,
+        "synthetic": true
+      }
+    },
+    {
+      "entity_type": "work",
+      "source_id": "synthetic-work-1002",
+      "observed_at": "2026-08-02T00:00:00Z",
+      "path": "raw/work_multi_page.json",
+      "status_code": 200,
+      "content_type": "application/json",
+      "source_url": "https://example.invalid/works/1002",
+      "metadata": {
+        "fixture_version": 1,
+        "synthetic": true
+      }
+    },
+    {
+      "entity_type": "author",
+      "source_id": "synthetic-author-501",
+      "observed_at": "2026-08-02T00:05:00Z",
+      "path": "raw/author_basic.json",
+      "status_code": 200,
+      "content_type": "application/json",
+      "source_url": "https://example.invalid/authors/501",
+      "metadata": {
+        "fixture_version": 1,
+        "synthetic": true
+      }
+    }
+  ]
+}
+

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "provider": "pixivpy3_app_api",
+  "library_version": "3.7.5",
+  "allowed_operations": ["search_illust", "user_illusts", "illust_ranking"],
+  "authentication_modes": ["oauth_pkce", "runtime_refresh_token"],
+  "requests_per_minute": 12,
+  "network_concurrency": 1,
+  "max_pages_per_run": 100,
+  "max_records_per_page": 30,
+  "max_candidate_records_per_run": 3000,
+  "local_processing_workers": 8,
+  "password_input_allowed": false,
+  "secret_persistence_allowed": false,
+  "raw_payload_persistence_allowed": false,
+  "media_download_allowed": false,
+  "automatic_retry_allowed": false,
+  "canonical_ingest_authorized": false
+}

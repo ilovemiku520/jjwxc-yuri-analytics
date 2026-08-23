@@ -1,0 +1,7 @@
+{
+  "enable_network": false,
+  "fixture_manifest": "fixtures/manifest.json",
+  "report_dir": "var/reports",
+  "log_level": "INFO"
+}
+

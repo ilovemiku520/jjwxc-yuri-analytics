@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Pixiv 元数据采集助手 · Yuri Cultural Index",
+  "version": "0.5.0",
+  "description": "Export approved metadata from the Pixiv artwork page the user has opened. No credentials or media are collected.",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "scripting",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "https://www.pixiv.net/artworks/*",
+    "https://www.pixiv.net/*/artworks/*",
+    "https://app-api.pixiv.net/web/v1/users/auth/pixiv/callback*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "oauth-callback.js"
+  },
+  "action": {
+    "default_title": "导出当前 Pixiv 作品元数据",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.pixiv.net/artworks/*",
+        "https://www.pixiv.net/*/artworks/*"
+      ],
+      "js": [
+        "collector-core.js",
+        "page-observer.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.pixiv.net/artworks/*",
+        "https://www.pixiv.net/*/artworks/*"
+      ],
+      "js": [
+        "collector-core.js",
+        "collector.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "status": "blocked_pending_source_review",
+  "accountable_owner": "ilovemiku520@outlook.com",
+  "purpose": "Personal learning and non-commercial research on public Pixiv metadata.",
+  "source_attribution": "Pixiv public metadata; platform and work rights remain with Pixiv and the respective rights holders.",
+  "affiliation_claimed": false,
+  "commercial_use_allowed": false,
+  "redistribution_allowed": false,
+  "data_mirroring_allowed": false,
+  "authentication_mode": "none",
+  "content_visibility": "unauthenticated_public",
+  "allowed_age_ratings": ["all_ages"],
+  "metadata_only": true,
+  "media_download_allowed": false,
+  "private_or_deleted_content_allowed": false,
+  "access_control_bypass_allowed": false,
+  "robots_enforcement_required": true,
+  "current_terms_review_required": true,
+  "exact_page_contract_required": true,
+  "representative_schema_review_required": true,
+  "traffic_limits": {
+    "requests_per_minute": 3,
+    "concurrency": 1,
+    "daily_request_cap": 25,
+    "initial_per_run_request_cap": 1,
+    "request_timeout_seconds": 15,
+    "minimum_delay_seconds": 20
+  },
+  "retention": {
+    "raw_response_storage_allowed": false,
+    "normalized_metadata_days": 7,
+    "audit_metadata_days": 365
+  },
+  "stop_conditions": [
+    "robots_disallow",
+    "terms_conflict",
+    "login_or_challenge_required",
+    "any_403",
+    "any_429",
+    "schema_drift",
+    "unexpected_redirect",
+    "non_html_or_non_json_content",
+    "body_size_limit",
+    "daily_request_cap",
+    "complaint_or_takedown",
+    "incident_owner_request"
+  ],
+  "blockers": [
+    "current_terms_text_not_captured",
+    "robots_decision_not_captured",
+    "exact_public_page_contract_missing",
+    "representative_sanitized_schema_missing"
+  ],
+  "authorizes_network_collection": false
+}

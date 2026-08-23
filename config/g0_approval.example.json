@@ -1,0 +1,77 @@
+{
+  "version": 2,
+  "status": "draft",
+  "purpose": "Describe the narrowly approved research purpose here.",
+  "accountable_owner": "REPLACE_ME",
+  "approved_by": "REPLACE_ME",
+  "incident_contact_role": "REPLACE_ME",
+  "approved_at": "2026-08-22T00:00:00+08:00",
+  "expires_at": "2026-09-21T00:00:00+08:00",
+  "terms_reviewed_at": "2026-08-22T00:00:00+08:00",
+  "terms_reference": "REPLACE_WITH_REVIEWED_TERMS_OR_LEGAL_MEMO_REFERENCE",
+  "source_scope": {
+    "page_types": ["public_work", "public_author", "public_tag"],
+    "allowed_fields": [
+      "work_id",
+      "work_title",
+      "author_id",
+      "author_display_name",
+      "public_tags",
+      "created_at",
+      "page_count",
+      "width",
+      "height",
+      "public_view_count",
+      "public_bookmark_count",
+      "public_like_count",
+      "tag_name",
+      "tag_translation"
+    ],
+    "prohibited_fields": [
+      "passwords",
+      "cookies",
+      "authorization_headers",
+      "private_content",
+      "deleted_content",
+      "image_bytes"
+    ],
+    "authentication_mode": "user_managed_session",
+    "content_visibility": "authenticated_public",
+    "allowed_age_ratings": ["all_ages", "r18", "r18g"],
+    "password_collection_allowed": false,
+    "secret_persistence_allowed": false,
+    "secret_logging_allowed": false,
+    "private_content_allowed": false,
+    "deleted_content_allowed": false,
+    "access_control_bypass_allowed": false,
+    "media_storage_allowed": false
+  },
+  "traffic_limits": {
+    "requests_per_minute": 6,
+    "concurrency": 1,
+    "daily_request_cap": 100,
+    "per_run_request_cap": 25,
+    "request_timeout_seconds": 15
+  },
+  "cost_limits": {
+    "currency": "CNY",
+    "daily_cap": 10,
+    "monthly_cap": 100
+  },
+  "retention": {
+    "raw_metadata_days": 7,
+    "audit_metadata_days": 365,
+    "store_raw_payloads_in_database": false,
+    "publication_mode": "private_research"
+  },
+  "stop_conditions": [
+    "repeated_403",
+    "repeated_429",
+    "schema_drift",
+    "daily_request_cap",
+    "daily_cost_cap",
+    "monthly_cost_cap",
+    "complaint_or_takedown",
+    "incident_owner_request"
+  ]
+}

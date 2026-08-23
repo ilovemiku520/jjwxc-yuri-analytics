@@ -1,0 +1,390 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        PYURI_NODE_BASE_IMAGE: ${PYURI_NODE_BASE_IMAGE:-node:22-alpine}
+    profiles: ["web"]
+    environment:
+      PYURI_INTERNAL_API_URL: http://api:8000
+      PYURI_PHASE6_REPORT_DIR: /run/pyuri-reports
+    ports:
+      - "127.0.0.1:${PYURI_WEB_PORT:-3000}:3000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    volumes:
+      - ./var/reports:/run/pyuri-reports:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/', {signal: AbortSignal.timeout(2000)})
+          .then(r => { if (!r.ok) process.exit(1) })
+          .catch(() => process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks:
+      - offline-db
+      - local-ui
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["api"]
+    entrypoint: ["pyuri-api"]
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_API_HOST: "0.0.0.0"
+      PYURI_API_PORT: "8000"
+      PYURI_API_DEPLOYMENT_SCOPE: "private_container"
+      PYURI_SHARED_CONSUMER_CONTROLS_ENABLED: "true"
+      PYURI_API_RATE_LIMIT_MAX_REQUESTS: "120"
+      PYURI_API_RATE_LIMIT_WINDOW_SECONDS: "60"
+      PYURI_API_RATE_LIMIT_MAX_CONSUMERS: "100000"
+      PYURI_API_AUDIT_RETENTION_DAYS: "30"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    ports:
+      - "127.0.0.1:${PYURI_API_PORT:-8000}:8000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - offline-db
+
+  tls-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["tls"]
+    entrypoint: ["pyuri-api"]
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_API_HOST: "0.0.0.0"
+      PYURI_API_PORT: "8443"
+      PYURI_API_DEPLOYMENT_SCOPE: "private_container"
+      PYURI_API_TLS_CERT_FILE: "/run/pyuri-tls/certificate.pem"
+      PYURI_API_TLS_KEY_FILE: "/run/pyuri-tls/private-key.pem"
+      PYURI_SHARED_CONSUMER_CONTROLS_ENABLED: "true"
+      PYURI_API_AUDIT_RETENTION_DAYS: "30"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    ports:
+      - "127.0.0.1:${PYURI_TLS_API_PORT:-8443}:8443"
+    volumes:
+      - ./var/tls-smoke:/run/pyuri-tls:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import ssl, urllib.request;
+          urllib.request.urlopen('https://127.0.0.1:8443/health/ready',
+          context=ssl._create_unverified_context(), timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks:
+      - offline-db
+
+  identity-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["identity"]
+    entrypoint: ["pyuri-api"]
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_API_HOST: "0.0.0.0"
+      PYURI_API_PORT: "8001"
+      PYURI_API_DEPLOYMENT_SCOPE: "private_container"
+      PYURI_CONSUMER_AUTH_MODE: "trusted_hmac_proxy"
+      PYURI_TRUSTED_PROXY_ID: "identity-smoke-edge"
+      PYURI_TRUSTED_PROXY_HMAC_SECRET_FILE: "/run/pyuri-identity/proxy-secret"
+      PYURI_TRUSTED_PROXY_MAX_AGE_SECONDS: "30"
+      PYURI_SHARED_CONSUMER_CONTROLS_ENABLED: "true"
+      PYURI_API_AUDIT_RETENTION_DAYS: "30"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    volumes:
+      - ./var/identity-smoke:/run/pyuri-identity:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=2)
+      interval: 10s
+      timeout: 3s
+      retries: 8
+    networks:
+      - offline-db
+
+  postgres:
+    image: ${PYURI_POSTGRES_IMAGE:-postgres:17}
+    profiles: ["database"]
+    environment:
+      POSTGRES_USER: ${PYURI_POSTGRES_USER:-pyuri}
+      POSTGRES_PASSWORD: ${PYURI_POSTGRES_PASSWORD:-change-me-local-only}
+      POSTGRES_DB: ${PYURI_POSTGRES_DB:-pyuri}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - offline-db
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["database"]
+    entrypoint: ["pyuri-db"]
+    command: ["migrate", "--alembic-config", "/app/alembic.ini"]
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - offline-db
+
+  fixture-ingest:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["database"]
+    entrypoint: ["pyuri-db"]
+    command:
+      - ingest-fixtures
+      - --manifest
+      - /app/fixtures/manifest.json
+      - --schema-policy
+      - /app/fixtures/schema_policy.json
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    volumes:
+      - ./fixtures:/app/fixtures:ro
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - offline-db
+
+  jjwxc-daily:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["live-jjwxc"]
+    entrypoint: ["jjyuri-jjwxc-daily"]
+    command:
+      - --ranking
+      - ${JJYURI_RANKING_KEY:-yuri_current}
+      - --hydrate-top
+      - ${JJYURI_HYDRATE_TOP:-10}
+      - --request-interval-seconds
+      - ${JJYURI_REQUEST_INTERVAL_SECONDS:-2}
+    environment:
+      JJYURI_ENABLE_NETWORK: "true"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - offline-db
+      - source-egress
+
+  safety-smoke:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["database"]
+    entrypoint: ["pyuri-db"]
+    command: ["safety-smoke", "--approval", "/run/pyuri/g0_approval.json"]
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    volumes:
+      - ./config/g0_approval.json:/run/pyuri/g0_approval.json:ro
+      - ./var/reports:/app/var/reports
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - offline-db
+
+  consumer-controls-smoke:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["database"]
+    entrypoint: ["pyuri-consumer-controls-smoke"]
+    command: ["--output", "/app/var/reports/consumer_controls_integration.json"]
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    volumes:
+      - ./var/reports:/app/var/reports
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - offline-db
+
+  launch-review:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["database"]
+    entrypoint: ["pyuri-launch-review"]
+    command:
+      - --approval
+      - /run/pyuri/g0_approval.json
+      - --planned-request-cap
+      - "1"
+      - --output
+      - /app/var/reports/launch_review.json
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    volumes:
+      - ./config/g0_approval.json:/run/pyuri/g0_approval.json:ro
+      - ./var/reports:/app/var/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - offline-db
+
+  schema-probe:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_FIXTURE_MANIFEST: /app/fixtures/manifest.json
+      PYURI_REPORT_DIR: /app/var/reports
+    command:
+      - analyze
+      - --manifest
+      - /app/fixtures/manifest.json
+      - --output
+      - /app/var/reports
+    network_mode: none
+    read_only: true
+    volumes:
+      - ./fixtures:/app/fixtures:ro
+      - ./var/reports:/app/var/reports
+    tmpfs:
+      - /tmp
+
+  browser-export-import:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["offline-import"]
+    entrypoint: ["pyuri-import-browser-export"]
+    command:
+      - /imports/${PYURI_BROWSER_EXPORT_FILE:-export.json}
+      - --output
+      - /candidates/browser-export.candidate.jsonl
+      - --report
+      - /reports/browser-export-import.json
+      - --force
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+    network_mode: none
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - type: bind
+        source: ${PYURI_BROWSER_EXPORT_DIR:-./var/imports/browser-export}
+        target: /imports
+        read_only: true
+      - type: bind
+        source: ./var/candidates
+        target: /candidates
+      - type: bind
+        source: ./var/reports
+        target: /reports
+    tmpfs:
+      - /tmp
+
+volumes:
+  postgres_data:
+
+networks:
+  offline-db:
+    internal: true
+  local-ui:
+    driver: bridge
+  source-egress:
+    driver: bridge

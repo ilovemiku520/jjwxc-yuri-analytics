@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/contracts/schema-policy.schema.json",
+  "title": "Offline Fixture Schema Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["policy_version", "scope", "provider", "entries"],
+  "properties": {
+    "policy_version": {"type": "integer", "minimum": 1},
+    "scope": {"const": "offline_fixture"},
+    "provider": {"type": "string", "minLength": 1, "maxLength": 100},
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_type", "fingerprint", "decision", "note"],
+      "properties": {
+        "entity_type": {
+          "enum": ["work", "author", "tag_page", "search_page"]
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "decision": {"enum": ["approved", "rejected"]},
+        "parser_id": {"type": "string", "minLength": 1, "maxLength": 100},
+        "parser_version": {"type": "string", "minLength": 1, "maxLength": 100},
+        "note": {"type": "string", "minLength": 1, "maxLength": 500}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"decision": {"const": "approved"}}},
+          "then": {"required": ["parser_id", "parser_version"]},
+          "else": {
+            "not": {
+              "anyOf": [
+                {"required": ["parser_id"]},
+                {"required": ["parser_version"]}
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

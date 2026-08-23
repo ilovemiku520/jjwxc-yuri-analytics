@@ -1,0 +1,22 @@
+[
+  {
+    "index": 0,
+    "idNum": 123456,
+    "title": "Synthetic work",
+    "userId": "789",
+    "user": "Synthetic author",
+    "tags": ["synthetic-tag"],
+    "tagsTranslOnly": ["Synthetic tag"],
+    "date": "2026-08-23T00:00:00+09:00",
+    "pageCount": 1,
+    "fullWidth": 1200,
+    "fullHeight": 900,
+    "viewCount": 10,
+    "bmk": 2,
+    "likeCount": 3,
+    "xRestrict": 0,
+    "novelMeta": null,
+    "original": "https://media.invalid/original.jpg",
+    "thumb": "https://media.invalid/thumb.jpg"
+  }
+]

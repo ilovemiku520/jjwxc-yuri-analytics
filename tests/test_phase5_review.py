@@ -1,0 +1,171 @@
+from __future__ import annotations
+
+import copy
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from pixiv_yuri.analytics.phase5_review import main, review_phase5
+
+REPORT_FILES = {
+    "core": "phase5_tag_discovery.json",
+    "web": "phase5_tag_web.json",
+    "manual_review": "phase5_tag_review.json",
+    "api_integration": "api_integration.json",
+    "web_integration": "web_integration.json",
+    "openapi": "openapi_contract.json",
+    "phase2": "phase2_exit_review.json",
+}
+CHECKED_AT = datetime(2026, 8, 23, 12, tzinfo=UTC)
+
+
+def _reports() -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for name, file_name in REPORT_FILES.items():
+        value = json.loads((Path("var/reports") / file_name).read_text(encoding="utf-8"))
+        assert isinstance(value, dict)
+        result[name] = value
+    artifact = json.loads(
+        Path("config/tag_review_decision.fixture.json").read_text(encoding="utf-8")
+    )
+    assert isinstance(artifact, dict)
+    result["review_artifact"] = artifact
+    return result
+
+
+def test_current_phase5_evidence_passes_private_fixture_only() -> None:
+    report = review_phase5(**_reports(), now=CHECKED_AT)
+
+    assert report.status == "passed_private_fixture_only"
+    assert report.phase5_private_fixture_ready is True
+    assert report.estimated_completion_percent == 100
+    assert report.api_path_count == 25
+    assert report.focused_python_test_count == 33
+    assert report.browser_test_count == 16
+    assert report.docker_web_route_count == 17
+    assert report.manual_review_validator_verified is True
+    assert report.semantic_classification_performed is False
+    assert report.external_publication_approved is False
+    assert report.real_source_collection_authorized is False
+    assert report.real_source_collection_count == 0
+    assert report.external_network_used is False
+    assert report.violations == ()
+    assert "real_source_collection" in report.deferred_capabilities
+
+
+@pytest.mark.parametrize(
+    "report_name,key,value,violation",
+    [
+        ("core", "focused_test_count", 32, "core_evidence_invalid"),
+        ("web", "serious_or_critical_accessibility_violations", 1, "web_evidence_invalid"),
+        (
+            "manual_review",
+            "manual_review_verified",
+            False,
+            "manual_review_validator_evidence_invalid",
+        ),
+        ("api_integration", "tag_sensitivity_status", 503, "api_integration_evidence_invalid"),
+        ("web_integration", "prohibited_fields_exposed", True, "web_integration_evidence_invalid"),
+        ("openapi", "mutation_routes_exposed", True, "openapi_evidence_mismatch"),
+        ("phase2", "private_read_api_ready", False, "private_boundary_evidence_invalid"),
+    ],
+)
+def test_each_evidence_layer_fails_closed(
+    report_name: str, key: str, value: object, violation: str
+) -> None:
+    reports = _reports()
+    reports[report_name][key] = value
+    report = review_phase5(**reports, now=CHECKED_AT)
+
+    assert report.status == "failed"
+    assert report.phase5_private_fixture_ready is False
+    assert violation in report.violations
+
+
+@pytest.mark.parametrize(
+    "report_name,key,value,violation",
+    [
+        (
+            "core",
+            "semantic_classification_performed",
+            True,
+            "semantic_classification_boundary_expanded",
+        ),
+        (
+            "manual_review",
+            "real_source_collection_authorized",
+            True,
+            "external_boundary_expanded",
+        ),
+        ("web", "real_source_collection_count", 1, "external_boundary_expanded"),
+        ("phase2", "external_publication_approved", True, "external_boundary_expanded"),
+        ("web_integration", "collection_network_enabled", True, "external_boundary_expanded"),
+    ],
+)
+def test_semantic_source_and_publication_boundaries_cannot_expand(
+    report_name: str, key: str, value: object, violation: str
+) -> None:
+    reports = _reports()
+    reports[report_name][key] = value
+
+    assert violation in review_phase5(**reports, now=CHECKED_AT).violations
+
+
+def test_stale_missing_or_hash_mismatched_evidence_fails_closed() -> None:
+    stale = review_phase5(
+        **_reports(), now=datetime(2026, 9, 1, tzinfo=UTC)
+    )
+    assert any(code.startswith("evidence_stale_or_future:") for code in stale.violations)
+
+    missing_time = _reports()
+    del missing_time["web"]["generated_at"]
+    assert "evidence_timestamp_invalid:web" in review_phase5(
+        **missing_time, now=CHECKED_AT
+    ).violations
+
+    mismatched = _reports()
+    mismatched["core"]["openapi_sha256"] = "0" * 64
+    assert "openapi_evidence_mismatch" in review_phase5(
+        **mismatched, now=CHECKED_AT
+    ).violations
+
+    tampered_artifact = _reports()
+    candidate = tampered_artifact["review_artifact"]["candidate"]
+    assert isinstance(candidate, dict)
+    candidate["cooccurrence_work_count"] = 3
+    artifact_report = review_phase5(**tampered_artifact, now=CHECKED_AT)
+    assert "manual_review_artifact_invalid" in artifact_report.violations
+
+    unbound = _reports()
+    unbound["core"]["synthetic_review_candidate_fingerprint"] = "0" * 64
+    assert "manual_review_candidate_unbound" in review_phase5(
+        **unbound, now=CHECKED_AT
+    ).violations
+
+
+def test_evidence_bundle_hash_is_canonical_and_detects_change() -> None:
+    reports = _reports()
+    first = review_phase5(**reports, now=CHECKED_AT)
+    reordered = copy.deepcopy(reports)
+    reordered["core"] = dict(reversed(list(reordered["core"].items())))
+    second = review_phase5(**reordered, now=CHECKED_AT)
+    assert first.evidence_bundle_sha256 == second.evidence_bundle_sha256
+
+    changed = copy.deepcopy(reports)
+    changed["manual_review"]["decision"] = "defer_insufficient_evidence"
+    third = review_phase5(**changed, now=CHECKED_AT)
+    assert first.evidence_bundle_sha256 != third.evidence_bundle_sha256
+
+
+def test_cli_writes_the_aggregate_exit_report(tmp_path: Path) -> None:
+    output = tmp_path / "phase5-exit.json"
+    exit_code = main(["--output", str(output)])
+    payload = json.loads(output.read_text(encoding="utf-8"))
+
+    assert exit_code == 0
+    assert payload["status"] == "passed_private_fixture_only"
+    assert payload["phase5_private_fixture_ready"] is True
+    assert payload["real_source_collection_count"] == 0

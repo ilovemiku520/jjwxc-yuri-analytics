@@ -1,0 +1,26 @@
+{
+  "id": "synthetic-work-1002",
+  "title": "Synthetic Work Beta",
+  "description": "Synthetic fixture content only.",
+  "published_at": "2026-07-02T11:30:00Z",
+  "work_type": "comic",
+  "page_count": 3,
+  "author": {
+    "id": "synthetic-author-501",
+    "name": "Synthetic Author"
+  },
+  "tags": [
+    {
+      "name": "synthetic-tag-a",
+      "translated_name": null
+    }
+  ],
+  "metrics": {
+    "likes": 98,
+    "bookmarks": 61
+  },
+  "flags": {
+    "restricted": false
+  }
+}
+

@@ -1,0 +1,32 @@
+{
+  "artifact_type": "tag_association_review_decision",
+  "version": 1,
+  "status": "finalized",
+  "review_id": "fixture-review-001",
+  "reviewer_id": "fixture-reviewer",
+  "reviewer_role": "human_reviewer",
+  "created_at": "2026-08-22T23:59:00Z",
+  "reviewed_at": "2026-08-23T00:00:00Z",
+  "candidate_fingerprint": "95946b64dcdbbc705356af171d7c0bb2abce43bb6fb9f09164f9a8801f4f16a2",
+  "candidate": {
+    "sampled_work_count": 2,
+    "anchor_tag": null,
+    "thresholds": [1, 2, 3, 5, 10],
+    "baseline_result_truncated": false,
+    "stability_comparable": true,
+    "left_tag_name": "synthetic-tag-a",
+    "left_tag_translation": "Synthetic Tag A",
+    "right_tag_name": "synthetic-tag-b",
+    "right_tag_translation": "Synthetic Tag B",
+    "cooccurrence_work_count": 2,
+    "sample_support_basis_points": 10000,
+    "jaccard_basis_points": 10000,
+    "pmi_milli_bits": 0,
+    "survives_minimum_cooccurrence": [1, 2]
+  },
+  "decision": "retain_for_followup",
+  "rationale": "Synthetic evidence is retained for a later accountable taxonomy review.",
+  "semantic_classification_performed": false,
+  "real_source_collection_authorized": false,
+  "external_network_used": false
+}

@@ -1,0 +1,30 @@
+{
+  "id": "synthetic-work-1001",
+  "title": "Synthetic Work Alpha",
+  "published_at": "2026-07-01T10:00:00Z",
+  "work_type": "illustration",
+  "page_count": 1,
+  "author": {
+    "id": "synthetic-author-501",
+    "name": "Synthetic Author"
+  },
+  "tags": [
+    {
+      "name": "synthetic-tag-a",
+      "translated_name": null
+    },
+    {
+      "name": "synthetic-tag-b",
+      "translated_name": "Synthetic B"
+    }
+  ],
+  "metrics": {
+    "likes": 120,
+    "bookmarks": 75,
+    "comments": 4
+  },
+  "flags": {
+    "restricted": false
+  }
+}
+

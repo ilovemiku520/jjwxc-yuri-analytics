@@ -1,0 +1,9 @@
+{
+  "fixture_kind": "author_influence_aggregates_v1",
+  "authors": [
+    {"author_id": "author-core", "author_display_name": "Core Author", "work_count": 8, "average_bookmark_count_x100": 10000, "average_like_count_x100": 15000},
+    {"author_id": "author-boutique", "author_display_name": "Boutique Author", "work_count": 2, "average_bookmark_count_x100": 12000, "average_like_count_x100": 18000},
+    {"author_id": "author-volume", "author_display_name": "Volume Author", "work_count": 10, "average_bookmark_count_x100": 2000, "average_like_count_x100": 3000},
+    {"author_id": "author-ordinary", "author_display_name": "Ordinary Author", "work_count": 1, "average_bookmark_count_x100": 1000, "average_like_count_x100": 1500}
+  ]
+}

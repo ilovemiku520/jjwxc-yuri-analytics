@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "status": "draft",
+  "deployment_id": "publication-draft",
+  "accountable_owner": "change-me",
+  "approver": "change-me",
+  "reviewed_at": "2026-08-23T00:00:00+08:00",
+  "expires_at": "2026-09-21T00:00:00+08:00",
+  "identity_proxy": {
+    "adapter": "trusted_hmac_proxy",
+    "product": "unconfigured",
+    "deployment_reference": "draft",
+    "proxy_id": "private-edge",
+    "direct_api_access_blocked": false,
+    "secret_delivery": "unconfigured",
+    "secret_rotation_days": 365,
+    "assertion_max_age_seconds": 300,
+    "health_monitoring_enabled": false
+  },
+  "tls": {
+    "hostname": "api.example.invalid",
+    "certificate_authority": "unconfigured",
+    "certificate_not_after": "2026-09-21T00:00:00+08:00",
+    "minimum_tls_version": "TLSv1.2",
+    "private_key_storage": "unconfigured",
+    "automated_renewal": false,
+    "renewal_monitoring_enabled": false,
+    "hsts_enabled": false
+  }
+}

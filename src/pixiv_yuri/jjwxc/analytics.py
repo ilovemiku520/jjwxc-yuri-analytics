@@ -1,0 +1,169 @@
+"""Deterministic descriptive analytics for minimized JJWXC snapshots."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from math import sqrt
+from statistics import fmean, median, pstdev
+from typing import Literal
+
+from pixiv_yuri.jjwxc.models import JjwxcNovel, JjwxcTrendPoint
+
+MetricName = Literal[
+    "reviews",
+    "favorites",
+    "points",
+    "words",
+    "clicks",
+    "synopsis_chars",
+]
+TimelineMetricName = Literal["reviews", "favorites", "points", "words", "clicks"]
+
+
+@dataclass(frozen=True)
+class MetricDefinition:
+    name: MetricName
+    label: str
+    attribute: str
+
+
+NOVEL_METRICS = (
+    MetricDefinition("reviews", "总书评数", "review_count"),
+    MetricDefinition("favorites", "当前被收藏数", "favorite_count"),
+    MetricDefinition("points", "文章积分", "points"),
+    MetricDefinition("words", "全文字数", "word_count"),
+    MetricDefinition("clicks", "非 V 章节章均点击数", "average_non_v_chapter_click_count"),
+    MetricDefinition("synopsis_chars", "文案字符数", "synopsis_char_count"),
+)
+
+_TIMELINE_ATTRIBUTES: dict[TimelineMetricName, str] = {
+    "reviews": "total_review_count",
+    "favorites": "total_favorite_count",
+    "points": "total_points",
+    "words": "total_word_count",
+    "clicks": "mean_non_v_chapter_click_count",
+}
+
+
+def metric_summary(
+    novels: tuple[JjwxcNovel, ...], definition: MetricDefinition
+) -> dict[str, object]:
+    """Summarize one cross-sectional metric while preserving missingness."""
+    values = [
+        float(value)
+        for novel in novels
+        if (value := getattr(novel, definition.attribute)) is not None
+    ]
+    observed_count = len(values)
+    missing_count = len(novels) - observed_count
+    coverage_basis_points = round(observed_count * 10_000 / len(novels)) if novels else 0
+    if not values:
+        return {
+            "metric": definition.name,
+            "label": definition.label,
+            "observed_count": 0,
+            "missing_count": missing_count,
+            "coverage_basis_points": coverage_basis_points,
+            "minimum": None,
+            "maximum": None,
+            "mean": None,
+            "median": None,
+            "standard_deviation": None,
+            "p25": None,
+            "p75": None,
+            "coefficient_of_variation": None,
+        }
+    mean = fmean(values)
+    deviation = pstdev(values)
+    return {
+        "metric": definition.name,
+        "label": definition.label,
+        "observed_count": observed_count,
+        "missing_count": missing_count,
+        "coverage_basis_points": coverage_basis_points,
+        "minimum": min(values),
+        "maximum": max(values),
+        "mean": mean,
+        "median": median(values),
+        "standard_deviation": deviation,
+        "p25": _percentile(values, 0.25),
+        "p75": _percentile(values, 0.75),
+        "coefficient_of_variation": deviation / mean if mean else None,
+    }
+
+
+def correlation_matrix(novels: tuple[JjwxcNovel, ...]) -> tuple[dict[str, object], ...]:
+    """Return pairwise-complete Pearson coefficients for the novel snapshot."""
+    cells: list[dict[str, object]] = []
+    for y_definition in NOVEL_METRICS:
+        for x_definition in NOVEL_METRICS:
+            pairs = [
+                (float(x_value), float(y_value))
+                for novel in novels
+                if (x_value := getattr(novel, x_definition.attribute)) is not None
+                and (y_value := getattr(novel, y_definition.attribute)) is not None
+            ]
+            cells.append(
+                {
+                    "x_metric": x_definition.name,
+                    "y_metric": y_definition.name,
+                    "paired_count": len(pairs),
+                    "coefficient": _pearson(pairs),
+                }
+            )
+    return tuple(cells)
+
+
+def normalized_timeline(
+    trends: tuple[JjwxcTrendPoint, ...],
+) -> tuple[dict[str, object], ...]:
+    """Index each aggregate series to its first non-zero observation (10000 = 100%)."""
+    baselines: dict[TimelineMetricName, float | None] = {}
+    for metric, attribute in _TIMELINE_ATTRIBUTES.items():
+        baselines[metric] = next(
+            (
+                float(value)
+                for point in trends
+                if (value := getattr(point, attribute)) is not None and float(value) != 0
+            ),
+            None,
+        )
+    normalized: list[dict[str, object]] = []
+    for point in trends:
+        values: dict[str, int | None] = {}
+        for metric, attribute in _TIMELINE_ATTRIBUTES.items():
+            value = getattr(point, attribute)
+            baseline = baselines[metric]
+            values[metric] = (
+                round(float(value) * 10_000 / baseline)
+                if value is not None and baseline is not None
+                else None
+            )
+        normalized.append({"day": point.day, "values": values})
+    return tuple(normalized)
+
+
+def _percentile(values: list[float], fraction: float) -> float:
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * fraction
+    lower = int(position)
+    upper = min(lower + 1, len(ordered) - 1)
+    weight = position - lower
+    return ordered[lower] * (1 - weight) + ordered[upper] * weight
+
+
+def _pearson(pairs: list[tuple[float, float]]) -> float | None:
+    if len(pairs) < 2:
+        return None
+    x_values = [pair[0] for pair in pairs]
+    y_values = [pair[1] for pair in pairs]
+    x_mean = fmean(x_values)
+    y_mean = fmean(y_values)
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in pairs)
+    x_scale = sqrt(sum((x - x_mean) ** 2 for x in x_values))
+    y_scale = sqrt(sum((y - y_mean) ** 2 for y in y_values))
+    if x_scale == 0 or y_scale == 0:
+        return None
+    return max(-1.0, min(1.0, numerator / (x_scale * y_scale)))
