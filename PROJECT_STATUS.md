@@ -620,3 +620,9 @@ Railway deliberately remains on the bounded 99-request command
 (`--index-pages 10 --hydrate-limit 39 --author-limit 10`) because the acquisition
 ledger caps a single run at 100 requests. Additional cloud coverage should therefore
 come from the daily schedule and resumable backfill, not a single unbounded burst.
+
+The first manual Railway execution exposed a volume-ownership issue before any source
+request was made: Railway mounts volumes as root while the API image defaults to UID
+10001. The private `daily` Cron service now sets `RAILWAY_RUN_UID=0` so it can create
+its cache directory on the attached volume; the public Web and private API services
+remain non-root. The failed run did not write source data or change the database.

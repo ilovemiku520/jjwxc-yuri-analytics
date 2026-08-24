@@ -114,6 +114,10 @@ export default defineRailway(() => {
     env: {
       JJYURI_ENABLE_NETWORK: preserve(),
       PYURI_DATABASE_URL: preserve(),
+      // Railway mounts persistent volumes as root. This private, non-public Cron
+      // worker must be root so it can create the cache directory on first run;
+      // the API and Web services remain non-root.
+      RAILWAY_RUN_UID: "0",
     },
   });
   const web = service("web", {
