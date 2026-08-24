@@ -2,15 +2,16 @@
 
 一个面向个人学习与非商业研究的公开分析网站，用于观察晋江文学城百合小说与作者的公开聚合元数据。
 项目提供每日增量快照、多指标时间轴、相关矩阵、全站索引搜索、双榜单、小说筛选、作者排行与
-运维状态，不在长期数据库中保存小说正文、评论内容或文案原文。
+运维状态，为避免侵权，本项目不会在长期数据库中保存小说正文、评论内容或文案原文内容。
 
-项目所属与作者：ilovemiku520@outlook.com
+项目所属与作者：ilovemiku520@outlook.com，有问题可通过邮箱联系。
+
+本项目只完成基础功能，尚为试行初级阶段，后续会进行ui界面和数据统计分析方法的优化。
 
 在线网站：[https://web-production-99ad5.up.railway.app](https://web-production-99ad5.up.railway.app)
 
 生产环境由仓库内 [`.railway/railway.ts`](.railway/railway.ts) 管理：Web 公开，API、PostgreSQL、
-每日采集和每日备份保持私网；四个代码服务绑定 GitHub `main` 自动部署。密钥仅保存在 Railway，
-不会进入仓库。
+每日采集和每日备份保持私网；四个代码服务绑定 GitHub `main` 自动部署。密钥仅保存在 Railway。
 
 ## 当前能力
 
