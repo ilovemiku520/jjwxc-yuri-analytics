@@ -16,9 +16,9 @@ Pixiv-specific acquisition is now legacy and is not part of the active product p
 |JJWXC read API|100%|Database-backed catalog, date-bounded timeline, log-standardized correlation, custom work cohorts, search and separate work/author rating endpoints implemented|
 |Interactive JJWXC website|100%|Search-first index, CSV/TSV/TXT cohort import with failure reports, total/per-work timelines, n>=30 adjustable Pearson/Spearman comparison, ratings and radar charts implemented|
 |Canonical PostgreSQL snapshots|97%|Migration 0014 deployed; real and synthetic sources are isolated; 59 real work snapshots and 10 real author profiles are stored|
-|Scheduled cloud collection|85%|Daily job and Railway cron configuration are ready; remote project activation and second-day verification remain|
-|Public cloud release|65%|Production containers and deployment-as-code are ready; Git remote, cloud account binding, domain and monitoring remain|
-|New JJWXC roadmap overall|Approximately 92%|Requested local analytics product is complete; durable remote publication, deeper backfill and authenticated V-click coverage remain|
+|Scheduled cloud collection|95%|Private daily job is active at Asia/Shanghai 03:30; first cloud sample passed and second-day evidence remains|
+|Public cloud release|100%|Public Web, private API/PostgreSQL, daily collection, backup, volumes and GitHub automatic deployment are live|
+|New JJWXC roadmap overall|Approximately 98%|Cloud product landing is complete; historical depth will grow through daily backfill and authorized V-click data remains optional|
 
 Current JJWXC API evidence is exported separately at `contracts/openapi-jjwxc-v1.json` and
 `var/reports/jjwxc_openapi_contract.json`: the historical review covered 36 GET-only paths and no
@@ -596,3 +596,10 @@ third 500MB Trial volume mounted at `/backups`. It creates a PostgreSQL custom-f
 at Asia/Shanghai 04:30, validates the archive with `pg_restore --list`, writes SHA-256
 evidence and retains seven dumps. The first verified archive
 `jjwxc-20260824T104711Z.dump` is 136287 bytes. No database or backup TCP endpoint is public.
+
+All four code services (`api`, `web`, `daily`, `backup`) are connected to the GitHub
+`ilovemiku520/jjwxc-yuri-analytics` repository on `main`. Their Dockerfiles, path-based
+automatic deployment rules, health checks, migration command, Singapore replicas, Cron
+schedules, persistent volumes and secret-preservation boundary are declared in
+`.railway/railway.ts`. The production release therefore no longer depends on a local CLI
+upload or on this virtual machine remaining available.

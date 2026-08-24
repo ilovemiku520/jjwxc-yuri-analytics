@@ -2,4 +2,8 @@ packages:
   - apps/web
 
 allowBuilds:
+  esbuild: true
   unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - railway@3.11.0

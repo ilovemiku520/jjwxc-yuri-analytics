@@ -115,7 +115,9 @@ def test_live_probe_accepts_bounded_gzip_without_persisting_raw_html(
             return Response()
 
     monkeypatch.setenv("JJYURI_ENABLE_NETWORK", "true")
-    monkeypatch.setattr(public_probe.urllib.request, "build_opener", lambda *args: Opener())
+    monkeypatch.setattr(
+        "pixiv_yuri.jjwxc.public_probe.urllib.request.build_opener", lambda *args: Opener()
+    )
     result = public_probe.probe_public_novel("10806685")
 
     assert result["status"] == "candidate_ready"

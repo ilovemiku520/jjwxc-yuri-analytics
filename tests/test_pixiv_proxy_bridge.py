@@ -6,9 +6,10 @@ import sys
 import threading
 import unittest
 from pathlib import Path
+from typing import Any
 
 
-def _load_bridge_module():
+def _load_bridge_module() -> Any:
     path = Path(__file__).parents[1] / "scripts" / "pixiv_proxy_bridge.py"
     spec = importlib.util.spec_from_file_location("pixiv_proxy_bridge", path)
     assert spec is not None and spec.loader is not None
@@ -89,7 +90,7 @@ class PixivProxyBridgeTests(unittest.TestCase):
         resolver = bridge.DnsOverHttpsResolver()
         calls: list[str] = []
 
-        def fake_query(host: str):
+        def fake_query(host: str) -> tuple[tuple[str, ...], int]:
             calls.append(host)
             return (("104.18.42.239",), 300)
 

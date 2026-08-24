@@ -109,11 +109,11 @@ def process_next_author_v_job(session: Session, *, worker_id: str) -> bool:
             )
         ).all()
     )
-    for task in stale:
-        task.status = "pending"
-        task.available_at = now
-        task.lease_until = None
-        task.last_error_code = "worker_lease_expired"
+    for stale_task in stale:
+        stale_task.status = "pending"
+        stale_task.available_at = now
+        stale_task.lease_until = None
+        stale_task.last_error_code = "worker_lease_expired"
     session.commit()
     task = session.scalar(
         select(CrawlTask)
@@ -184,7 +184,7 @@ def process_next_author_v_job(session: Session, *, worker_id: str) -> bool:
 
 
 def _status(run: CrawlRun, task: CrawlTask) -> AuthorVJobStatus:
-    config = cast(dict[str, Any], run.config_snapshot)
+    config = run.config_snapshot
     run_status = "completed" if run.status == "completed" else cast(
         Literal["pending", "running", "failed"], run.status
     )

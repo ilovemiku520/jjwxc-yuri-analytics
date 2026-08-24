@@ -138,7 +138,7 @@ $report = [ordered]@{
     archive_size_bytes = (Get-Item -LiteralPath $archivePath).Length
     source_file_count = $files.Count
     working_tree_dirty = $dirty
-    railway_preflight = "passed_with_legacy_config_warning"
+    railway_preflight = "passed"
     secret_scan = "passed"
 }
 $reportPath = Join-Path $projectRoot "var\reports\source_release_latest.json"

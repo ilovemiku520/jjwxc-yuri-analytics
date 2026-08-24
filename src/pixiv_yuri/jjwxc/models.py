@@ -36,7 +36,7 @@ class JjwxcNovel(BaseModel):
     observed_at: datetime
     source_mode: Literal["synthetic_fixture", "public_candidate"]
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def v_to_non_v_click_retention_basis_points(self) -> int | None:
         """Return the V/non-V chapter-click ratio without treating missing clicks as zero."""

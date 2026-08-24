@@ -30,6 +30,22 @@ $api = Read-RailwayConfig "deploy\railway\api.railway.json"
 $web = Read-RailwayConfig "deploy\railway\web.railway.json"
 $daily = Read-RailwayConfig "deploy\railway\daily.railway.json"
 $backup = Read-RailwayConfig "deploy\railway\backup.railway.json"
+$iacPath = Join-Path $projectRoot ".railway\railway.ts"
+$iacText = if (Test-Path -LiteralPath $iacPath -PathType Leaf) {
+    Get-Content -Raw -LiteralPath $iacPath
+} else { "" }
+Add-Check "iac.definition" ([bool]$iacText) "Railway Infrastructure as Code definition exists"
+Add-Check "iac.github_source" `
+    ($iacText -match 'ilovemiku520/jjwxc-yuri-analytics' -and $iacText -match 'branch:\s*"main"') `
+    "Four code services use the GitHub main branch"
+Add-Check "iac.secret_boundary" `
+    ($iacText -match 'PYURI_COHORT_IMPORT_TOKEN:\s*preserve\(\)' -and
+     $iacText -notmatch '(?i)(password|token)\s*:\s*"[^$][^"]+"') `
+    "Runtime secrets are preserved without literal values"
+foreach ($dockerfile in @("apps/api/Dockerfile", "apps/web/Dockerfile", "apps/backup/Dockerfile")) {
+    Add-Check "iac.$($dockerfile.Replace('/', '_'))" `
+        ($iacText -match [regex]::Escape($dockerfile)) "IaC references $dockerfile"
+}
 $schema = "https://railway.com/railway.schema.json"
 foreach ($item in @(
     @{ name = "api"; config = $api; dockerfile = "apps/api/Dockerfile" },
@@ -128,7 +144,7 @@ Add-Check "variables.no_private_key" ($environmentText -notmatch "BEGIN .*PRIVAT
 
 $failed = @($checks | Where-Object { -not $_.passed })
 $report = [ordered]@{
-    status = $(if ($failed.Count) { "failed" } else { "passed_with_legacy_config_warning" })
+    status = $(if ($failed.Count) { "failed" } else { "passed" })
     generated_at = [DateTimeOffset]::UtcNow.ToString("o")
     check_count = $checks.Count
     failed_check_count = $failed.Count
@@ -139,9 +155,9 @@ $report = [ordered]@{
         daily = @("PYURI_DATABASE_URL", "JJYURI_ENABLE_NETWORK")
         backup = @("DATABASE_URL")
     }
-    config_as_code_notice = "Railway Config as Code remains usable for legacy services until 2026-12-01; migrate to Railway Infrastructure as Code after initial recovery deployment."
+    infrastructure_as_code = ".railway/railway.ts is the production source of truth; deploy/railway JSON files are retained only for offline release compatibility."
     official_references = @(
-        "https://docs.railway.com/config-as-code/reference",
+        "https://docs.railway.com/infrastructure-as-code",
         "https://docs.railway.com/cron-jobs",
         "https://docs.railway.com/deployments/pre-deploy-command",
         "https://docs.railway.com/builds/dockerfiles"
@@ -155,6 +171,6 @@ if ($failed.Count) {
     $failed | ForEach-Object { Write-Error "$($_.name): $($_.detail)" }
     throw "Railway deployment preflight failed."
 }
-Write-Host "Railway deployment preflight passed with a legacy Config-as-Code warning."
+Write-Host "Railway deployment preflight passed with Infrastructure as Code."
 Write-Host "Report: $reportPath"
 $global:LASTEXITCODE = 0

@@ -160,29 +160,30 @@ export function AuthorVClickImporter() {
     }
   }
 
+  async function fetchJobs(jobIds: number[]) {
+    return Promise.all(jobIds.map(async (jobId) => {
+      const response = await fetch(`/api/jjwxc/author-v-clicks/${jobId}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("job_status_unavailable");
+      return (await response.json()) as JjwxcAuthorVClickJobResponse;
+    }));
+  }
+
   useEffect(() => {
     try {
       const restored = JSON.parse(localStorage.getItem("pyuri-author-v-jobs") ?? "[]") as unknown;
       if (Array.isArray(restored) && restored.every((item) => Number.isSafeInteger(item) && Number(item) > 0)) {
-        void refreshJobs(restored as number[]);
+        void fetchJobs(restored as number[]).then(setJobs).catch(() => setError("无法恢复历史导入任务"));
       }
     } catch { localStorage.removeItem("pyuri-author-v-jobs"); }
   }, []);
 
   useEffect(() => {
     if (!jobs.some((item) => item.status === "pending" || item.status === "running")) return;
-    const timer = window.setInterval(() => void refreshJobs(jobs.map((item) => item.job_id)), 2_000);
+    const timer = window.setInterval(() => {
+      void fetchJobs(jobs.map((item) => item.job_id)).then(setJobs).catch(() => setError("任务状态暂时不可用"));
+    }, 2_000);
     return () => window.clearInterval(timer);
   }, [jobs]);
-
-  async function refreshJobs(jobIds: number[]) {
-    const refreshed = await Promise.all(jobIds.map(async (jobId) => {
-      const response = await fetch(`/api/jjwxc/author-v-clicks/${jobId}`, { cache: "no-store" });
-      if (!response.ok) throw new Error("job_status_unavailable");
-      return (await response.json()) as JjwxcAuthorVClickJobResponse;
-    }));
-    setJobs(refreshed);
-  }
 
   async function retryJob(jobId: number) {
     const response = await fetch(`/api/jjwxc/author-v-clicks/${jobId}/retry`, { method: "POST" });

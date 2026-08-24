@@ -6,6 +6,12 @@
 
 项目所属与作者：ilovemiku520@outlook.com
 
+在线网站：[https://web-production-99ad5.up.railway.app](https://web-production-99ad5.up.railway.app)
+
+生产环境由仓库内 [`.railway/railway.ts`](.railway/railway.ts) 管理：Web 公开，API、PostgreSQL、
+每日采集和每日备份保持私网；四个代码服务绑定 GitHub `main` 自动部署。密钥仅保存在 Railway，
+不会进入仓库。
+
 ## 当前能力
 
 - 分层全站作品索引：分页扫描官方百合作品库，按作品名或作者名查询 PostgreSQL 中文子串索引；

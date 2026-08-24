@@ -225,7 +225,7 @@ def _relay(left: socket.socket, right: socket.socket, idle_timeout: float = 180.
 
 
 class PixivConnectHandler(socketserver.BaseRequestHandler):
-    server: "PixivProxyServer"
+    server: PixivProxyServer
 
     def handle(self) -> None:
         upstream: socket.socket | None = None
@@ -237,7 +237,9 @@ class PixivConnectHandler(socketserver.BaseRequestHandler):
             request_line = header.split(b"\r\n", 1)[0].decode("ascii", errors="strict")
             method, target, _version = request_line.split(" ", 2)
             if method.upper() != "CONNECT":
-                self.request.sendall(b"HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n")
+                self.request.sendall(
+                    b"HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n"
+                )
                 return
             host, port = parse_connect_target(target)
             addresses = self.server.resolver.resolve_ipv4(host)

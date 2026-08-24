@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -54,7 +55,9 @@ def test_durable_job_fails_closed_and_can_be_explicitly_retried() -> None:
         assert retried.attempt_count == 1
 
 
-def test_internal_job_api_persists_payload_and_reports_status(monkeypatch) -> None:
+def test_internal_job_api_persists_payload_and_reports_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     factory = _factory()
     monkeypatch.setenv("PYURI_COHORT_IMPORT_TOKEN", "internal-test-token")
     app = create_app(lambda: None, session_factory=factory)

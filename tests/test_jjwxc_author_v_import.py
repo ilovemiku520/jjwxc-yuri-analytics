@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -108,7 +109,7 @@ def test_author_export_rejects_incomplete_v_chapter_set() -> None:
     assert result[0].error_code == "vip_chapter_set_incomplete"
 
 
-def test_internal_api_accepts_extension_contract(monkeypatch) -> None:
+def test_internal_api_accepts_extension_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     factory = _factory()
     novel_id = _seed(factory)
     monkeypatch.setenv("PYURI_COHORT_IMPORT_TOKEN", "internal-test-token")

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from email.message import Message
 from pathlib import Path
+from urllib.request import Request
+
+import pytest
 
 from pixiv_yuri.jjwxc.source_cache import JjwxcSourceCache
 
@@ -31,16 +34,16 @@ class _Response:
 class _Opener:
     def __init__(self, payloads: list[bytes]) -> None:
         self.payloads = payloads
-        self.requests = []
+        self.requests: list[Request] = []
 
-    def open(self, request: object, timeout: int) -> _Response:
+    def open(self, request: Request, timeout: int) -> _Response:
         del timeout
         self.requests.append(request)
         return _Response(request.full_url, self.payloads.pop(0))
 
 
 def test_authenticated_fetch_bypasses_public_cache_and_stays_memory_only(
-    tmp_path: Path, monkeypatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     url = "https://www.jjwxc.net/onebook.php?novelid=88"
     opener = _Opener([b"public", b"authenticated", b"public-next"])

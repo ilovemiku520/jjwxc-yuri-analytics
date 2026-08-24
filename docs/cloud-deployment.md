@@ -31,25 +31,25 @@
 ## 五个服务的变量
 
 1. PostgreSQL：使用 Railway PostgreSQL 模板，保持私网。
-2. `api`：配置路径 `/deploy/railway/api.railway.json`；设置
+2. `api`：由仓库内 `/.railway/railway.ts` 管理；设置
    `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}`、`PYURI_API_HOST=0.0.0.0`、
    `PYURI_API_DEPLOYMENT_SCOPE=private_container`、`PYURI_SHARED_CONSUMER_CONTROLS_ENABLED=true`，并生成
    高熵随机值 `PYURI_COHORT_IMPORT_TOKEN`（不得提交仓库）。
-3. `web`：配置路径 `/deploy/railway/web.railway.json`；设置
+3. `web`：由仓库内 `/.railway/railway.ts` 管理；设置
    `PYURI_INTERNAL_API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}`，并设置与 api 完全相同的
    `PYURI_COHORT_IMPORT_TOKEN`；只为该服务生成公网域名。
-4. `daily`：配置路径 `/deploy/railway/daily.railway.json`；设置
+4. `daily`：由仓库内 `/.railway/railway.ts` 管理；设置
    `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}` 和 `JJYURI_ENABLE_NETWORK=true`，不生成公网域名；挂载
    Volume 到 `/data/cache`。可用 `--index-pages` 与 `JJYURI_HYDRATE_LIMIT` 控制摘要扫描和详细补全量；
    默认生产命令扫描 10 页、补全 39 部作品与 10 位作者，使单次运行请求上界为 99 次。
-5. `backup`：配置路径 `/deploy/railway/backup.railway.json`；设置
+5. `backup`：由仓库内 `/.railway/railway.ts` 管理；设置
    `DATABASE_URL=${{Postgres.DATABASE_URL}}`，不生成公网域名；挂载 500MB Volume 到 `/backups`。
    UTC 每日 20:30（北京时间次日 04:30）执行 `pg_dump` custom-format 逻辑备份，先用
    `pg_restore --list` 校验再原子改名，并保留最近 7 份及其 SHA-256 文件。
 
-Railway 为每个服务使用同一代码仓库根目录；四个代码服务配置文件在 Service Settings 中分别指定。
-数据库迁移由 api 的 pre-deploy 步骤执行。生产环境先运行 daily 的 dry-run，再手动触发一次正式任务并
-核对榜单行数、作品快照数与网站数据来源标识。
+Railway 为每个服务使用同一 GitHub 仓库的 `main` 分支；`/.railway/railway.ts` 固化各服务的
+Dockerfile、监听路径、新加坡副本、健康检查、迁移命令、Cron、持久卷和密钥占位。密钥使用
+`preserve()` 保留在 Railway，不写入代码。数据库迁移由 api 的 pre-deploy 步骤执行。
 
 ## 到期前迁移顺序
 
@@ -83,9 +83,9 @@ custom-format 备份，并在随机命名的隔离数据库中完成一次恢复
 `.env`、Git 历史、数据库备份、缓存、日志、虚拟环境和依赖目录，并用本机 `.env` 的值执行不回显内容的
 泄漏扫描。输出位于 `var/releases/jjwxc-source-release-*.zip`。
 
-截至 2026-08-24，Railway 官方已将 Config as Code 标记为弃用，但既有服务仍支持到 2026-12-01。
-为优先完成虚拟机到期迁移，本项目保留四份现有配置进行首次恢复部署；上线后应迁移到 Railway
-Infrastructure as Code，不能把该兼容期当作长期方案。
+四份 `deploy/railway/*.railway.json` 仅保留为离线迁移包和旧环境兼容输入。生产环境已经迁移到
+Railway Infrastructure as Code；提交前运行 `railway config plan`，确认无资源删除后再运行
+`railway config apply`。四个代码服务都绑定 GitHub `main`，后续匹配监听路径的提交会自动构建部署。
 
 ## 2026-08-24 实际部署状态
 
@@ -103,6 +103,8 @@ Infrastructure as Code，不能把该兼容期当作长期方案。
 - `backup` 已作为第 5 个且最后一个 Trial 服务部署到新加坡；它没有公网域名，挂载第三个 500MB Trial
   卷 `/backups`。首份 `jjwxc-20260824T104711Z.dump` 已通过 `pg_restore --list` 校验，大小 136287 字节；
   后续每天 04:30 执行并保留最近 7 份。
+- `api`、`web`、`daily`、`backup` 已绑定 GitHub 仓库 `ilovemiku520/jjwxc-yuri-analytics` 的 `main`
+  分支；生产构建与部署规则已迁入 `/.railway/railway.ts`，云端不再依赖这台虚拟机上传代码快照。
 - 下一项线上证据是核对 2026-08-25 首次自动运行结果及第二个观测日快照。Trial 结束后会转为每月
   1 美元额度的 Free，但当前三项常驻服务预计不能整月维持；必须在额度结束前完成数据库备份或迁移。
 

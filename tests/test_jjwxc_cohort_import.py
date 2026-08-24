@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -76,7 +77,7 @@ def test_status_keeps_failed_collection_out_of_ready_cohort() -> None:
 
 
 def test_api_queues_and_checks_a_bounded_cohort_without_source_network(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     factory = _factory()
     monkeypatch.setenv("PYURI_COHORT_IMPORT_TOKEN", "test-internal-token")
