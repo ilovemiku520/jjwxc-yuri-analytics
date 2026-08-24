@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import sqrt
+from math import log1p, sqrt
 from statistics import fmean, median, pstdev
 from typing import Literal
 
@@ -15,9 +15,17 @@ MetricName = Literal[
     "points",
     "words",
     "clicks",
+    "v_clicks",
     "synopsis_chars",
 ]
-TimelineMetricName = Literal["reviews", "favorites", "points", "words", "clicks"]
+TimelineMetricName = Literal[
+    "reviews",
+    "favorites",
+    "points",
+    "words",
+    "clicks",
+    "v_clicks",
+]
 
 
 @dataclass(frozen=True)
@@ -33,6 +41,7 @@ NOVEL_METRICS = (
     MetricDefinition("points", "文章积分", "points"),
     MetricDefinition("words", "全文字数", "word_count"),
     MetricDefinition("clicks", "非 V 章节章均点击数", "average_non_v_chapter_click_count"),
+    MetricDefinition("v_clicks", "V 章节章均点击数", "average_v_chapter_click_count"),
     MetricDefinition("synopsis_chars", "文案字符数", "synopsis_char_count"),
 )
 
@@ -42,6 +51,7 @@ _TIMELINE_ATTRIBUTES: dict[TimelineMetricName, str] = {
     "points": "total_points",
     "words": "total_word_count",
     "clicks": "mean_non_v_chapter_click_count",
+    "v_clicks": "mean_v_chapter_click_count",
 }
 
 
@@ -93,7 +103,7 @@ def metric_summary(
 
 
 def correlation_matrix(novels: tuple[JjwxcNovel, ...]) -> tuple[dict[str, object], ...]:
-    """Return pairwise-complete Pearson coefficients for the novel snapshot."""
+    """Return pairwise-complete Pearson r after log1p and z-score normalization."""
     cells: list[dict[str, object]] = []
     for y_definition in NOVEL_METRICS:
         for x_definition in NOVEL_METRICS:
@@ -108,7 +118,7 @@ def correlation_matrix(novels: tuple[JjwxcNovel, ...]) -> tuple[dict[str, object
                     "x_metric": x_definition.name,
                     "y_metric": y_definition.name,
                     "paired_count": len(pairs),
-                    "coefficient": _pearson(pairs),
+                    "coefficient": _log_standardized_pearson(pairs),
                 }
             )
     return tuple(cells)
@@ -167,3 +177,23 @@ def _pearson(pairs: list[tuple[float, float]]) -> float | None:
     if x_scale == 0 or y_scale == 0:
         return None
     return max(-1.0, min(1.0, numerator / (x_scale * y_scale)))
+
+
+def _log_standardized_pearson(pairs: list[tuple[float, float]]) -> float | None:
+    """Reduce heavy-tail leverage, then explicitly standardize both paired series."""
+    if len(pairs) < 2:
+        return None
+    transformed = [(log1p(x), log1p(y)) for x, y in pairs]
+    x_values = [pair[0] for pair in transformed]
+    y_values = [pair[1] for pair in transformed]
+    x_mean = fmean(x_values)
+    y_mean = fmean(y_values)
+    x_scale = pstdev(x_values)
+    y_scale = pstdev(y_values)
+    if x_scale == 0 or y_scale == 0:
+        return None
+    standardized = [
+        ((x - x_mean) / x_scale, (y - y_mean) / y_scale)
+        for x, y in transformed
+    ]
+    return _pearson(standardized)

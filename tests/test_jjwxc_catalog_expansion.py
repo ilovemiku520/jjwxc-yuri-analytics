@@ -145,7 +145,7 @@ def test_chapter_parser_recovers_unique_position_from_stale_long_directory_link(
     assert [item.position for item in chapters] == [166, 167]
 
 
-def test_click_jsonp_and_candidate_aggregates_distinguish_missing_vip_clicks() -> None:
+def test_click_jsonp_preserves_authenticated_inline_vip_clicks() -> None:
     payload = """
     <meta charset="gb18030"><h1>《测试》</h1>
     <a href="oneauthor.php?authorid=7">作者专栏</a><p>作者：作者甲</p>
@@ -159,7 +159,8 @@ def test_click_jsonp_and_candidate_aggregates_distinguish_missing_vip_clicks() -
       <td class="chapterclick" clickchapterid="1"></td></tr>
       <tr itemprop="chapter"><td>2</td><td><a id="vip_2"
       rel="onebook_vip.php?novelid=88&chapterid=2">2</a></td>
-      <td>摘要</td><td itemprop="wordCount">4100</td><td></td></tr>
+      <td>摘要</td><td itemprop="wordCount">4100</td>
+      <td class="chapterclick" clickchapterid="2">300</td></tr>
     </table>
     """.encode("gb18030")
     click_payload = b'novelclick({"1":"500"})'
@@ -174,7 +175,7 @@ def test_click_jsonp_and_candidate_aggregates_distinguish_missing_vip_clicks() -
 
     assert parse_chapter_click_payload(click_payload) == {1: 500}
     assert enriched.average_non_v_chapter_click_count == 500
-    assert enriched.average_v_chapter_click_count is None
+    assert enriched.average_v_chapter_click_count == 300
     assert enriched.non_v_chapter_count == 1
     assert enriched.v_chapter_count == 1
-    assert enriched.chapter_click_coverage_count == 1
+    assert enriched.chapter_click_coverage_count == 2

@@ -28,6 +28,7 @@ def load_catalog(
     factory: sessionmaker[Session] | None,
     *,
     selected_day: str | None = None,
+    novel_ids: frozenset[str] | None = None,
 ) -> tuple[JjwxcDemoCatalog, DataMode]:
     """Use canonical database snapshots when present; otherwise retain explicit fixtures."""
     if factory is None:
@@ -52,6 +53,8 @@ def load_catalog(
     # Never blend real public candidates with synthetic smoke-test rows in one cohort.
     if any(snapshot.source_mode == "public_candidate" for snapshot, _, _ in rows):
         rows = [row for row in rows if row[0].source_mode == "public_candidate"]
+    if novel_ids:
+        rows = [row for row in rows if row[1].novel_id in novel_ids]
     if selected_day is not None:
         target_day = date.fromisoformat(selected_day)
         rows = [

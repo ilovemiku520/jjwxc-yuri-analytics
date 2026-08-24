@@ -1,6 +1,6 @@
 "use client";
 
-import { HeatmapChart, LineChart } from "echarts/charts";
+import { BarChart, HeatmapChart, LineChart } from "echarts/charts";
 import {
   GridComponent,
   LegendComponent,
@@ -19,6 +19,7 @@ import type {
   JjwxcCorrelationCell,
   JjwxcMetricName,
   JjwxcMultivariateResponse,
+  JjwxcNovel,
   JjwxcNormalizedTrendPoint,
   JjwxcTimelineMetricName,
   JjwxcTrendPoint,
@@ -30,6 +31,7 @@ echarts.use([
   TooltipComponent,
   VisualMapComponent,
   HeatmapChart,
+  BarChart,
   LineChart,
   CanvasRenderer,
 ]);
@@ -41,6 +43,7 @@ const timelineMetrics: Array<{ key: JjwxcTimelineMetricName; label: string }> =
     { key: "points", label: "积分" },
     { key: "words", label: "字数" },
     { key: "clicks", label: "非 V 章均点击" },
+    { key: "v_clicks", label: "V 章均点击" },
   ];
 
 const allMetrics: Array<{ key: JjwxcMetricName; label: string }> = [
@@ -54,6 +57,7 @@ const colors: Record<JjwxcTimelineMetricName, string> = {
   points: "#f6c969",
   words: "#8cb8ff",
   clicks: "#c6a7ff",
+  v_clicks: "#ff9f7d",
 };
 
 function rawValue(
@@ -64,11 +68,69 @@ function rawValue(
   if (metric === "favorites") return point.total_favorite_count;
   if (metric === "points") return point.total_points;
   if (metric === "words") return point.total_word_count;
-  return point.mean_non_v_chapter_click_count;
+  if (metric === "clicks") return point.mean_non_v_chapter_click_count;
+  return point.mean_v_chapter_click_count;
+}
+
+function normalizeTimelineForRange(
+  timeline: JjwxcTrendPoint[],
+): JjwxcNormalizedTrendPoint[] {
+  const baselines = Object.fromEntries(
+    timelineMetrics.map(({ key }) => [
+      key,
+      timeline
+        .map((point) => rawValue(point, key))
+        .find((value) => value !== null && value !== 0) ?? null,
+    ]),
+  ) as Record<JjwxcTimelineMetricName, number | null>;
+  return timeline.map((point) => ({
+    day: point.day,
+    values: Object.fromEntries(
+      timelineMetrics.map(({ key }) => {
+        const value = rawValue(point, key);
+        const baseline = baselines[key];
+        return [
+          key,
+          value !== null && baseline !== null
+            ? Math.round((value * 10000) / baseline)
+            : null,
+        ];
+      }),
+    ) as Record<JjwxcTimelineMetricName, number | null>,
+  }));
 }
 
 function labelFor(metric: JjwxcMetricName) {
   return allMetrics.find((item) => item.key === metric)?.label ?? metric;
+}
+
+function novelMetricValue(novel: JjwxcNovel, metric: JjwxcMetricName): number | null {
+  if (metric === "reviews") return novel.review_count;
+  if (metric === "favorites") return novel.favorite_count;
+  if (metric === "points") return novel.points;
+  if (metric === "words") return novel.word_count;
+  if (metric === "clicks") return novel.average_non_v_chapter_click_count;
+  if (metric === "v_clicks") return novel.average_v_chapter_click_count;
+  return novel.synopsis_char_count;
+}
+
+function logStandardizedPearson(pairs: Array<[number, number]>): number | null {
+  if (pairs.length < 2) return null;
+  const transformed = pairs.map(([x, y]) => [Math.log1p(x), Math.log1p(y)] as const);
+  const xMean = transformed.reduce((sum, [x]) => sum + x, 0) / transformed.length;
+  const yMean = transformed.reduce((sum, [, y]) => sum + y, 0) / transformed.length;
+  const numerator = transformed.reduce(
+    (sum, [x, y]) => sum + (x - xMean) * (y - yMean),
+    0,
+  );
+  const xScale = Math.sqrt(
+    transformed.reduce((sum, [x]) => sum + (x - xMean) ** 2, 0),
+  );
+  const yScale = Math.sqrt(
+    transformed.reduce((sum, [, y]) => sum + (y - yMean) ** 2, 0),
+  );
+  if (xScale === 0 || yScale === 0) return null;
+  return Math.max(-1, Math.min(1, numerator / (xScale * yScale)));
 }
 
 function TimelineChart({
@@ -307,17 +369,155 @@ function CorrelationHeatmap({
   );
 }
 
+function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [rankingMetric, setRankingMetric] = useState<JjwxcMetricName>("favorites");
+  const topNovels = useMemo(
+    () =>
+      [...novels]
+        .filter((novel) => novelMetricValue(novel, rankingMetric) !== null)
+        .sort(
+          (left, right) =>
+            (novelMetricValue(right, rankingMetric) ?? 0) -
+              (novelMetricValue(left, rankingMetric) ?? 0) ||
+            left.novel_id.localeCompare(right.novel_id),
+        )
+        .slice(0, 10),
+    [novels, rankingMetric],
+  );
+  const comparisons = useMemo(
+    () =>
+      allMetrics
+        .filter((metric) => metric.key !== rankingMetric)
+        .map((metric) => {
+          const pairs = topNovels.flatMap((novel) => {
+            const x = novelMetricValue(novel, rankingMetric);
+            const y = novelMetricValue(novel, metric.key);
+            return x === null || y === null ? [] : ([[x, y]] as Array<[number, number]>);
+          });
+          return {
+            metric: metric.key,
+            label: metric.label,
+            pairedCount: pairs.length,
+            coefficient: logStandardizedPearson(pairs),
+          };
+        })
+        .filter((item) => item.coefficient !== null),
+    [rankingMetric, topNovels],
+  );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const chart = echarts.init(container, undefined, { renderer: "canvas" });
+    chart.setOption({
+      animationDuration: 250,
+      grid: { left: 155, right: 58, top: 20, bottom: 38 },
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+      xAxis: {
+        type: "value",
+        min: -1,
+        max: 1,
+        name: `与${labelFor(rankingMetric)}的 Pearson r`,
+        nameTextStyle: { color: "#b9adb6" },
+        axisLabel: { color: "#b9adb6" },
+        splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } },
+      },
+      yAxis: {
+        type: "category",
+        data: comparisons.map((item) => `${item.label} · n=${item.pairedCount}`),
+        axisLabel: { color: "#b9adb6" },
+      },
+      series: [
+        {
+          type: "bar",
+          data: comparisons.map((item) => ({
+            value: Number(item.coefficient?.toFixed(3)),
+            itemStyle: {
+              color: (item.coefficient ?? 0) >= 0 ? "#f28e5b" : "#3a7bbf",
+              borderRadius: (item.coefficient ?? 0) >= 0 ? [0, 6, 6, 0] : [6, 0, 0, 6],
+            },
+          })),
+          label: { show: true, position: "right", color: "#f7f3f6" },
+        },
+      ],
+    });
+    const observer = new ResizeObserver(() => chart.resize());
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      chart.dispose();
+    };
+  }, [comparisons, rankingMetric]);
+
+  return (
+    <section className="chart-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">TOP 10 COHORT · ADJUSTABLE VARIABLE</p>
+          <h2>榜单前十作品相关系数比较</h2>
+        </div>
+        <span>蓝色负相关 · 橙色正相关</span>
+      </div>
+      <div className="metric-picker" aria-label="前十榜单排序变量">
+        {allMetrics.map((metric) => (
+          <button
+            aria-pressed={rankingMetric === metric.key}
+            key={metric.key}
+            onClick={() => setRankingMetric(metric.key)}
+            type="button"
+          >
+            {metric.label}
+          </button>
+        ))}
+      </div>
+      <div
+        aria-label={`按${labelFor(rankingMetric)}选出的前十作品相关系数比较图`}
+        className="analysis-chart top-ten-correlation-chart"
+        ref={containerRef}
+        role="img"
+      />
+      <p className="top-ten-cohort-names">
+        当前样本：{topNovels.map((novel) => novel.title).join("、") || "没有足够数据"}
+      </p>
+      <p className="analysis-note">
+        先按所选变量取前十部作品，再在该样本内对各变量执行 log(1+x)、Z-score
+        标准化和成对完整 Pearson 相关；每根柱的 n 是实际共同有效样本数。
+      </p>
+    </section>
+  );
+}
+
 export function MultivariateExplorer({
   data,
 }: {
   data: JjwxcMultivariateResponse;
 }) {
-  const [indexed, setIndexed] = useState(true);
+  const availableDays = data.available_days.length
+    ? data.available_days
+    : data.timeline.map((item) => item.day);
+  const [indexed, setIndexed] = useState(false);
   const [timelineSelection, setTimelineSelection] = useState<
     JjwxcTimelineMetricName[]
-  >(["reviews", "favorites", "clicks"]);
+  >(["favorites"]);
+  const [dateFrom, setDateFrom] = useState(availableDays[0] ?? "");
+  const [dateTo, setDateTo] = useState(availableDays.at(-1) ?? "");
   const [matrixSelection, setMatrixSelection] = useState<JjwxcMetricName[]>(
     allMetrics.map((item) => item.key),
+  );
+  const vClickCoverage = data.cohort_items.filter(
+    (novel) => novel.average_v_chapter_click_count !== null,
+  ).length;
+  const filteredTimeline = useMemo(
+    () =>
+      data.timeline.filter(
+        (item) => (!dateFrom || item.day >= dateFrom) && (!dateTo || item.day <= dateTo),
+      ),
+    [data.timeline, dateFrom, dateTo],
+  );
+  const filteredNormalized = useMemo(
+    () => normalizeTimelineForRange(filteredTimeline),
+    [filteredTimeline],
   );
 
   function toggleTimeline(metric: JjwxcTimelineMetricName) {
@@ -341,8 +541,6 @@ export function MultivariateExplorer({
       return [...current, metric];
     });
   }
-
-  const clickSummary = data.summaries.find((item) => item.metric === "clicks");
 
   return (
     <div className="analysis-stack">
@@ -377,16 +575,52 @@ export function MultivariateExplorer({
             );
           })}
         </div>
+        <div className="timeline-range" aria-label="统计时间范围">
+          <label>
+            <span>开始日期</span>
+            <input
+              max={dateTo || availableDays.at(-1)}
+              min={availableDays[0]}
+              onChange={(event) => {
+                setDateFrom(event.target.value);
+                if (dateTo && event.target.value > dateTo) setDateTo(event.target.value);
+              }}
+              type="date"
+              value={dateFrom}
+            />
+          </label>
+          <label>
+            <span>结束日期</span>
+            <input
+              max={availableDays.at(-1)}
+              min={dateFrom || availableDays[0]}
+              onChange={(event) => {
+                setDateTo(event.target.value);
+                if (dateFrom && event.target.value < dateFrom) setDateFrom(event.target.value);
+              }}
+              type="date"
+              value={dateTo}
+            />
+          </label>
+          <p>
+            统计时间：{dateFrom || "最早"} 至 {dateTo || "最新"} · {filteredTimeline.length}
+            个快照日 · {data.cohort_items.length} 部作品
+          </p>
+        </div>
         <TimelineChart
-          timeline={data.timeline}
-          normalized={data.normalized_timeline}
+          timeline={filteredTimeline}
+          normalized={filteredNormalized}
           metrics={timelineSelection}
           indexed={indexed}
           label="JJWXC 多指标时间轴图"
         />
         <p className="analysis-note">
-          基准指数把各序列首个有效值设为
-          100%，只比较变化速度；原值模式会为每个变量分配独立纵轴，并按数值量级自动选用千、万或亿。
+          默认显示原值并以收藏数为左侧纵轴；增加变量后会分配独立纵轴，并按量级自动选用千、万或亿。
+          基准指数模式把区间首个有效值设为 100%，只比较变化速度。
+        </p>
+        <p className="analysis-note v-click-coverage" role="status">
+          V 章点击覆盖：{vClickCoverage}/{data.cohort_items.length} 部作品。
+          V 章数值只在已登录作品页提供时保存；公开点击接口缺失该字段时不会再覆盖登录页中的原值。
         </p>
       </section>
 
@@ -416,69 +650,12 @@ export function MultivariateExplorer({
         />
         <p className="analysis-note">
           横轴、纵轴和颜色共三维；蓝色表示负相关，浅灰表示弱相关，黄色至红色表示正相关。
-          缺失点击量时按每对变量的共同有效样本计算，悬停可查看样本数。
+          所有非负计数先执行 log(1+x) 并做 Z-score 标准化，再按成对完整样本计算 Pearson r；
+          这降低了积分、点击等长尾变量的极端值影响。矩阵使用所选作品集合的最新快照。
         </p>
       </section>
 
-      <section className="summary-panel" aria-labelledby="summary-title">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">HIGH-DIMENSIONAL SUMMARY</p>
-            <h2 id="summary-title">高维统计特性</h2>
-          </div>
-          <span>中位数 · 四分位距 · 变异系数 · 覆盖率</span>
-        </div>
-        <div className="summary-grid">
-          {data.summaries.map((summary) => (
-            <article key={summary.metric} className="summary-card">
-              <h3>{summary.label}</h3>
-              <strong>
-                {summary.median === null
-                  ? "缺失"
-                  : formatMetric(summary.median)}
-              </strong>
-              <dl>
-                <div>
-                  <dt>覆盖率</dt>
-                  <dd>{(summary.coverage_basis_points / 100).toFixed(0)}%</dd>
-                </div>
-                <div>
-                  <dt>四分位距</dt>
-                  <dd>
-                    {summary.p25 === null || summary.p75 === null
-                      ? "—"
-                      : formatMetric(summary.p75 - summary.p25)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>变异系数</dt>
-                  <dd>
-                    {summary.coefficient_of_variation === null
-                      ? "—"
-                      : summary.coefficient_of_variation.toFixed(2)}
-                  </dd>
-                </div>
-              </dl>
-            </article>
-          ))}
-        </div>
-        <p className="analysis-note">
-          点击量口径为“非 V 章节章均点击数”，
-          {data.data_mode === "database_snapshot" ? "当前数据库快照" : "当前演示"}
-          覆盖{" "}
-          {clickSummary?.observed_count ?? 0} /{" "}
-          {data.timeline.at(-1)?.observed_novel_count ?? 0}
-          ；未公开的值保持为空。
-          文案仅保存字符数、句数和固定主题词，不保存原文。
-        </p>
-      </section>
+      <TopTenCorrelationComparison novels={data.cohort_items} />
     </div>
   );
-}
-
-function formatMetric(value: number) {
-  return new Intl.NumberFormat("zh-CN", {
-    maximumFractionDigits: 1,
-    notation: "compact",
-  }).format(value);
 }

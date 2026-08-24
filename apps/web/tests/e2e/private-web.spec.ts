@@ -22,26 +22,20 @@ test("shows JJWXC product identity, ownership, and research boundary", async ({
   ).toBeVisible();
 });
 
-test("filters and reorders novels without triggering source collection", async ({
+test("keeps the novel index search-first without rendering the full catalog", async ({
   page,
 }) => {
   await page.goto("/novels");
   await expect(
-    page.getByRole("heading", { name: "百合小说分析" }),
+    page.getByRole("heading", { name: "找作品，也看见趋势" }),
   ).toBeVisible();
-  await page.getByLabel("检索").fill("长夜");
+  await expect(page.getByText("页面不再铺开全部已采集作品")).toBeVisible();
+  await expect(page.getByText("她从长夜来")).toHaveCount(0);
+  await page.getByLabel("搜索晋江百合作品").fill("长夜");
+  await page.getByRole("button", { name: "搜索索引" }).click();
+  await expect(page).toHaveURL(/\/novels\?q=%E9%95%BF%E5%A4%9C/u);
   await expect(page.getByText("她从长夜来")).toBeVisible();
   await expect(page.getByText("向晚潮声")).toHaveCount(0);
-  await page.getByLabel("检索").fill("");
-  await page.getByLabel("进度").selectOption("连载");
-  await expect(page.getByText("向晚潮声")).toBeVisible();
-  await expect(page.getByText("她从长夜来")).toHaveCount(0);
-  await page.getByLabel("进度").selectOption("全部");
-  await page.getByRole("button", { name: "书评" }).click();
-  await expect(page.getByRole("button", { name: "书评" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
 });
 
 test("navigates novel and author aggregate details", async ({ page }) => {
@@ -70,7 +64,7 @@ test("publishes consistent JJWXC source and non-commercial statements", async ({
     }),
   ).toBeVisible();
   await expect(
-    page.getByText("不保存文案原文", { exact: false }),
+    page.getByText("长期库仅保留文案长度", { exact: false }),
   ).toBeVisible();
 });
 
@@ -91,26 +85,38 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
     page.getByRole("heading", { name: "作品与作者公开数据表现评级" }),
   ).toBeVisible();
   await expect(page.getByLabel("作品评分排行")).toBeVisible();
-  await page.getByRole("button", { name: "作者", exact: true }).click();
-  await expect(page.getByLabel("作者评分排行")).toBeVisible();
-  await page.getByLabel("收藏权重").fill("5000");
+  await page.getByLabel("收藏权重", { exact: true }).fill("5000");
   await expect(page.getByText("41.3%", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "恢复数据校准权重" }).click();
   await expect(page.getByText("29.0%", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "切换为原值" }).click();
-  await expect(page.getByText("左轴 · 总书评 · 求和统计 · 千条").first()).toBeVisible();
-  await expect(page.getByText("右轴 · 总收藏 · 求和统计 · 万次")).toBeVisible();
+  await page.getByRole("button", { name: "作者", exact: true }).click();
+  await expect(page.getByLabel("作者评分排行")).toBeVisible();
+  await expect(page.getByRole("button", { name: "切换为基准指数" })).toBeVisible();
+  await expect(page.getByText("左轴 · 总收藏 · 求和统计 · 万次")).toBeVisible();
+  const timelinePicker = page.getByLabel("时间轴指标，最多选择三个");
+  await timelinePicker.getByRole("button", { name: "书评" }).click();
+  await timelinePicker.getByRole("button", { name: "非 V 章均点击" }).click();
+  await expect(page.getByText("右轴 · 总书评 · 求和统计 · 千条")).toBeVisible();
   await expect(
     page.getByText("右轴（外侧） · 非 V 章均点击 · 跨作品均值 · 万次/章"),
   ).toBeVisible();
-  await page.getByRole("button", { name: "非 V 章均点击" }).first().click();
+  await expect(page.getByRole("button", { name: "V 章均点击" }).first()).toBeVisible();
+  await expect(page.getByText("V 章点击覆盖：1/2 部作品")).toBeVisible();
+  await expect(page.getByLabel("统计时间范围")).toBeVisible();
+  await page.getByLabel("开始日期").fill("2026-08-23");
+  await expect(page.getByText(/1个快照日/u)).toBeVisible();
+  await page.getByLabel("开始日期").fill("2026-08-22");
   await expect(
-    page.getByRole("button", { name: "非 V 章均点击" }).first(),
-  ).toHaveAttribute("aria-pressed", "false");
-  await expect(page.getByText("单量，多时间窗口")).toHaveCount(0);
-  await expect(
-    page.getByText("文案仅保存字符数", { exact: false }),
+    page.getByRole("img", { name: /前十作品相关系数比较图/u }),
   ).toBeVisible();
+  await expect(page.getByText("单量，多时间窗口")).toHaveCount(0);
+  await expect(page.getByText("高维统计特性")).toHaveCount(0);
+  await page.getByLabel("搜索作品名或作者名后加入统计").fill("长夜");
+  await page.getByRole("button", { name: "搜索可统计作品" }).click();
+  await page.getByRole("link", { name: "加入统计" }).click();
+  await expect(page).toHaveURL(/novels=90000002/u);
+  await expect(page.getByLabel("已选择作品")).toContainText("她从长夜来");
+  await expect(page.getByText("V 章点击覆盖：0/1 部作品")).toBeVisible();
 });
 
 test("shows one-request candidate status without mutation controls", async ({

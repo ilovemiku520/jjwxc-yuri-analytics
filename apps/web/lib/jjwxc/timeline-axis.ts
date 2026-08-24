@@ -23,6 +23,11 @@ const metadata: Record<
     statistic: "跨作品均值",
     baseUnit: "次/章",
   },
+  v_clicks: {
+    label: "V 章均点击",
+    statistic: "跨作品均值",
+    baseUnit: "次/章",
+  },
 };
 
 export function buildTimelineAxisSpecs(

@@ -13,12 +13,12 @@ Pixiv-specific acquisition is now legacy and is not part of the active product p
 |-|-:|-|
 |Public-page feasibility and field review|100%|Four unauthenticated endpoints tested; terms and robots recorded|
 |JJWXC models, parser and bounded collector|99%|Ranking, work detail, chapter clicks and author-profile aggregates are implemented with bounded cache-aware collection|
-|JJWXC read API|99%|Database-backed catalog, timeline, descriptive statistics, correlation, search and separate work/author rating endpoints implemented|
-|Interactive JJWXC website|99%|Dynamic axes, matrix, robust summaries, adjustable ratings and five-metric author radar charts implemented|
+|JJWXC read API|100%|Database-backed catalog, date-bounded timeline, log-standardized correlation, custom work cohorts, search and separate work/author rating endpoints implemented|
+|Interactive JJWXC website|100%|Search-first index, custom work cohorts, raw-value timeline, date range, high-contrast matrix, adjustable top-ten correlation comparison, ratings and radar charts implemented|
 |Canonical PostgreSQL snapshots|97%|Migration 0014 deployed; real and synthetic sources are isolated; 59 real work snapshots and 10 real author profiles are stored|
 |Scheduled cloud collection|85%|Daily job and Railway cron configuration are ready; remote project activation and second-day verification remain|
 |Public cloud release|65%|Production containers and deployment-as-code are ready; Git remote, cloud account binding, domain and monitoring remain|
-|New JJWXC roadmap overall|Approximately 91%|Local production stack, indexed search and real author/work samples work; durable remote publication and deeper backfill remain|
+|New JJWXC roadmap overall|Approximately 92%|Requested local analytics product is complete; durable remote publication, deeper backfill and authenticated V-click coverage remain|
 
 Current JJWXC API evidence is exported separately at `contracts/openapi-jjwxc-v1.json` and
 `var/reports/jjwxc_openapi_contract.json`: 36 GET-only paths, no mutation route and no prohibited
@@ -36,12 +36,19 @@ The first bounded real run stored 200 ranking rows from one public ranking reque
 top 10 public novel summaries. API projections exclude all synthetic Fixture rows whenever real
 `public_candidate` snapshots exist, so demonstration and real observations cannot be blended.
 
-The deployed website currently reads 49 detailed real novels and 49 related authors from the latest
-snapshot. Ten authors have real public profile aggregates covering nonlocked works, author
+The deployed website currently reads 56 detailed real novels from 59 stored public snapshots across
+two observation days. Ten authors have real public profile aggregates covering nonlocked works, author
 favorites, observed-work favorites, nonlocked-work words and nonlocked-work points. Locked works
 are excluded from the author work/word/point totals. Incomplete profiles are labeled with their
 coverage and receive a matching score penalty rather than being treated as complete. The rating is
 explicitly cohort-relative public-data performance, not literary quality.
+
+Cross-sectional correlation now applies `log(1+x)` to nonnegative count variables, explicitly
+Z-standardizes each pair and calculates pairwise-complete Pearson coefficients. The website exposes
+the method, sample size and a blue-to-red signed scale. The public chapter-click response currently
+covers 49 novels for non-V clicks and zero for V clicks. The parser now preserves V-click values found
+inline in an authenticated page instead of overwriting them with missing public-response values; the
+UI reports the exact V-click coverage rather than implying that absent values are zero.
 
 The former 98% figure below describes the completed Pixiv-oriented baseline, not the new
 JJWXC product roadmap.

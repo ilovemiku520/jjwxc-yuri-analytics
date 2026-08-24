@@ -92,19 +92,28 @@ def test_jjwxc_api_is_get_only_and_no_store() -> None:
 def test_multivariate_analytics_preserves_missingness_and_matrix_shape() -> None:
     with TestClient(create_app(lambda: None)) as client:
         response = client.get("/api/v1/jjwxc/analytics/multivariate")
+        unsupported_fixture_cohort = client.get(
+            "/api/v1/jjwxc/analytics/multivariate",
+            params={"novel_ids": "90000001"},
+        )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["history_source"] == "project_snapshot_fixture"
     assert payload["interpretation"] == "descriptive_association_only"
+    assert payload["correlation_method"] == "pearson_log1p_zscore_pairwise_complete"
+    assert payload["v_click_definition"] == "average_v_chapter_click_count"
+    assert len(payload["cohort_items"]) == 8
     assert len(payload["timeline"]) == 8
     assert len(payload["normalized_timeline"]) == 8
     assert payload["normalized_timeline"][0]["values"]["reviews"] == 10_000
-    assert len(payload["correlation_matrix"]) == 36
+    assert len(payload["correlation_matrix"]) == 49
     click_summary = next(item for item in payload["summaries"] if item["metric"] == "clicks")
     assert click_summary["observed_count"] == 6
     assert click_summary["missing_count"] == 2
     assert click_summary["coverage_basis_points"] == 7_500
+    assert unsupported_fixture_cohort.status_code == 404
+    assert unsupported_fixture_cohort.json()["detail"] == "jjwxc_analytics_cohort_not_found"
 
 
 def test_adjustable_ratings_are_normalized_ranked_and_explicitly_relative() -> None:

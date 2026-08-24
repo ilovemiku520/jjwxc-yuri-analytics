@@ -15,6 +15,10 @@ const jjwxcNovels = [
     favorite_count: 18400,
     points: 164800000,
     average_non_v_chapter_click_count: 18200,
+    average_v_chapter_click_count: 9600,
+    non_v_chapter_count: 18,
+    v_chapter_count: 12,
+    chapter_click_coverage_count: 30,
     synopsis_char_count: 132,
     synopsis_sentence_count: 6,
     synopsis_theme_terms: ["都市", "成长"],
@@ -35,6 +39,10 @@ const jjwxcNovels = [
     favorite_count: 32600,
     points: 386500000,
     average_non_v_chapter_click_count: null,
+    average_v_chapter_click_count: null,
+    non_v_chapter_count: 20,
+    v_chapter_count: 0,
+    chapter_click_coverage_count: 0,
     synopsis_char_count: 168,
     synopsis_sentence_count: 7,
     synopsis_theme_terms: ["救赎", "历史"],
@@ -69,6 +77,7 @@ const jjwxcMetrics = [
   "points",
   "words",
   "clicks",
+  "v_clicks",
   "synopsis_chars",
 ];
 const jjwxcTimeline = [
@@ -81,6 +90,8 @@ const jjwxcTimeline = [
     total_word_count: 642000,
     click_coverage_count: 1,
     mean_non_v_chapter_click_count: 17900,
+    v_click_coverage_count: 1,
+    mean_v_chapter_click_count: 9400,
   },
   {
     day: "2026-08-23",
@@ -91,6 +102,8 @@ const jjwxcTimeline = [
     total_word_count: 650600,
     click_coverage_count: 1,
     mean_non_v_chapter_click_count: 18200,
+    v_click_coverage_count: 1,
+    mean_v_chapter_click_count: 9600,
   },
 ];
 const jjwxcNormalizedTimeline = [
@@ -102,6 +115,7 @@ const jjwxcNormalizedTimeline = [
       points: 10000,
       words: 10000,
       clicks: 10000,
+      v_clicks: 10000,
     },
   },
   {
@@ -112,6 +126,7 @@ const jjwxcNormalizedTimeline = [
       points: 10209,
       words: 10134,
       clicks: 10168,
+      v_clicks: 10213,
     },
   },
 ];
@@ -123,11 +138,12 @@ const jjwxcSummaries = jjwxcMetrics.map((metric) => ({
     points: "文章积分",
     words: "全文字数",
     clicks: "非 V 章节章均点击数",
+    v_clicks: "V 章节章均点击数",
     synopsis_chars: "文案字符数",
   }[metric],
-  observed_count: metric === "clicks" ? 1 : 2,
-  missing_count: metric === "clicks" ? 1 : 0,
-  coverage_basis_points: metric === "clicks" ? 5000 : 10000,
+  observed_count: metric === "clicks" || metric === "v_clicks" ? 1 : 2,
+  missing_count: metric === "clicks" || metric === "v_clicks" ? 1 : 0,
+  coverage_basis_points: metric === "clicks" || metric === "v_clicks" ? 5000 : 10000,
   minimum: 100,
   maximum: 200,
   mean: 150,
@@ -141,8 +157,14 @@ const jjwxcCorrelationMatrix = jjwxcMetrics.flatMap((yMetric) =>
   jjwxcMetrics.map((xMetric) => ({
     x_metric: xMetric,
     y_metric: yMetric,
-    paired_count: xMetric === "clicks" || yMetric === "clicks" ? 1 : 2,
-    coefficient: xMetric === "clicks" || yMetric === "clicks" ? null : 1,
+    paired_count:
+      ["clicks", "v_clicks"].includes(xMetric) || ["clicks", "v_clicks"].includes(yMetric)
+        ? 1
+        : 2,
+    coefficient:
+      ["clicks", "v_clicks"].includes(xMetric) || ["clicks", "v_clicks"].includes(yMetric)
+        ? null
+        : 1,
   })),
 );
 const work = {
@@ -188,17 +210,29 @@ function payloadFor(url) {
     };
   if (path === "/api/v1/jjwxc/trends")
     return { data_mode: "synthetic_fixture", items: jjwxcTimeline };
-  if (path === "/api/v1/jjwxc/analytics/multivariate")
+  if (path === "/api/v1/jjwxc/analytics/multivariate") {
+    const selectedIds = (url.searchParams.get("novel_ids") ?? "")
+      .split(",")
+      .filter(Boolean);
+    const cohortItems = selectedIds.length
+      ? jjwxcNovels.filter((item) => selectedIds.includes(item.novel_id))
+      : jjwxcNovels;
     return {
       data_mode: "synthetic_fixture",
       history_source: "project_snapshot_fixture",
       interpretation: "descriptive_association_only",
       click_definition: "average_non_v_chapter_click_count",
+      v_click_definition: "average_v_chapter_click_count",
+      correlation_method: "pearson_log1p_zscore_pairwise_complete",
+      available_days: ["2026-08-22", "2026-08-23"],
+      selected_novel_ids: selectedIds,
+      cohort_items: cohortItems,
       timeline: jjwxcTimeline,
       normalized_timeline: jjwxcNormalizedTimeline,
       summaries: jjwxcSummaries,
       correlation_matrix: jjwxcCorrelationMatrix,
     };
+  }
   if (path === "/api/v1/jjwxc/analytics/ratings")
     return {
       data_mode: "synthetic_fixture",
@@ -212,6 +246,13 @@ function payloadFor(url) {
         points: 2100,
         words: 1100,
         clicks: 1200,
+      },
+      author_default_weights: {
+        nonlocked_works: 1000,
+        author_favorites: 2500,
+        work_favorites: 2500,
+        words: 1500,
+        points: 2500,
       },
       effective_weights: {
         reviews: 2700,
@@ -229,11 +270,18 @@ function payloadFor(url) {
           grade: "SSS",
           coverage_basis_points: 8000,
           component_scores: {
-            reviews: 10000,
-            favorites: 10000,
+            nonlocked_works: 10000,
+            author_favorites: 10000,
+            work_favorites: 10000,
             points: 10000,
             words: 10000,
-            clicks: null,
+          },
+          raw_values: {
+            nonlocked_works: 8,
+            author_favorites: 36000,
+            work_favorites: 32600,
+            points: 386500000,
+            words: 468200,
           },
         },
         {
@@ -244,11 +292,18 @@ function payloadFor(url) {
           grade: "B",
           coverage_basis_points: 10000,
           component_scores: {
-            reviews: 0,
-            favorites: 0,
+            nonlocked_works: 0,
+            author_favorites: 0,
+            work_favorites: 0,
             points: 0,
             words: 0,
-            clicks: 10000,
+          },
+          raw_values: {
+            nonlocked_works: 2,
+            author_favorites: 1200,
+            work_favorites: 18400,
+            points: 164800000,
+            words: 182400,
           },
         },
       ],
@@ -292,6 +347,64 @@ function payloadFor(url) {
       items: jjwxcNovels,
       total: jjwxcNovels.length,
     };
+  if (path === "/api/v1/jjwxc/search") {
+    const query = (url.searchParams.get("query") ?? "").toLowerCase();
+    const items = jjwxcNovels.filter(
+      (item) =>
+        item.title.toLowerCase().includes(query) ||
+        item.author_display_name.toLowerCase().includes(query),
+    );
+    return {
+      data_mode: "synthetic_fixture",
+      query,
+      match_fields: ["title", "author_display_name"],
+      items,
+      total: items.length,
+      limit: 20,
+      offset: 0,
+    };
+  }
+  if (path === "/api/v1/jjwxc/catalog-search") {
+    const query = (url.searchParams.get("query") ?? "").toLowerCase();
+    const items = jjwxcNovels
+      .filter(
+        (item) =>
+          item.title.toLowerCase().includes(query) ||
+          item.author_display_name.toLowerCase().includes(query),
+      )
+      .map((item) => ({
+        novel_id: item.novel_id,
+        title: item.title,
+        author_id: item.author_id,
+        author_display_name: item.author_display_name,
+        novel_type: item.novel_type,
+        status: item.status,
+        word_count: item.word_count,
+        points: item.points,
+        published_at: null,
+        last_seen_at: item.observed_at,
+        detail_available: true,
+      }));
+    return {
+      data_mode: "synthetic_fixture",
+      query,
+      coverage: "progressive_official_bookbase_index",
+      match_fields: ["title", "author_display_name"],
+      items,
+      total: items.length,
+      limit: 100,
+      offset: 0,
+    };
+  }
+  if (path === "/api/v1/jjwxc/channel-rankings") {
+    const key = url.searchParams.get("ranking_key") ?? "channel_gold";
+    return {
+      ranking_key: key,
+      label: key === "newcomer" ? "新手金榜" : "频道金榜",
+      observation_day: "2026-08-23",
+      items: [],
+    };
+  }
   if (path.startsWith("/api/v1/jjwxc/novels/"))
     return jjwxcNovels.find((item) => path.endsWith(item.novel_id));
   if (path === "/api/v1/jjwxc/authors")

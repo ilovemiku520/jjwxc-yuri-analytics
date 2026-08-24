@@ -533,7 +533,9 @@ def parse_chapter_directory(
         return ()
     click_map = parse_chapter_click_payload(click_payload) if click_payload else {}
     parsed = tuple(
-        chapter.model_copy(update={"click_count": click_map.get(chapter.chapter_id)})
+        chapter.model_copy(
+            update={"click_count": click_map.get(chapter.chapter_id, chapter.click_count)}
+        )
         for chapter in parser.chapters
     )
     # Some desktop pages render the same directory twice. Accept byte-equivalent chapter

@@ -545,7 +545,13 @@ export interface JjwxcTrendResponse {
 }
 
 export type JjwxcMetricName =
-  "reviews" | "favorites" | "points" | "words" | "clicks" | "synopsis_chars";
+  | "reviews"
+  | "favorites"
+  | "points"
+  | "words"
+  | "clicks"
+  | "v_clicks"
+  | "synopsis_chars";
 
 export type JjwxcTimelineMetricName = Exclude<
   JjwxcMetricName,
@@ -585,6 +591,11 @@ export interface JjwxcMultivariateResponse {
   history_source: "project_snapshot_fixture" | "canonical_database_snapshot";
   interpretation: "descriptive_association_only";
   click_definition: "average_non_v_chapter_click_count";
+  v_click_definition: "average_v_chapter_click_count";
+  correlation_method: "pearson_log1p_zscore_pairwise_complete";
+  available_days: string[];
+  selected_novel_ids: string[];
+  cohort_items: JjwxcNovel[];
   timeline: JjwxcTrendPoint[];
   normalized_timeline: JjwxcNormalizedTrendPoint[];
   summaries: JjwxcMetricSummary[];

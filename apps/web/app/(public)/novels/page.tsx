@@ -2,12 +2,10 @@ import Link from "next/link";
 
 import { CatalogSearchResults } from "../../../components/jjwxc/catalog-search-results";
 import { ChannelRankings } from "../../../components/jjwxc/channel-rankings";
-import { NovelExplorer } from "../../../components/jjwxc/novel-explorer";
 import { fetchApi } from "../../../lib/api/client";
 import type {
   JjwxcChannelRankingResponse,
   JjwxcFullCatalogSearchResponse,
-  JjwxcNovelPage,
 } from "../../../types/api";
 
 export const dynamic = "force-dynamic";
@@ -25,15 +23,12 @@ export default async function NovelsPage({
 }) {
   const rawQuery = firstValue((await searchParams).q);
   const query = rawQuery.trim().slice(0, 100);
-  const [searchResult, catalogResult, goldResult, newcomerResult] = await Promise.allSettled([
+  const [searchResult, goldResult, newcomerResult] = await Promise.allSettled([
     query
       ? fetchApi<JjwxcFullCatalogSearchResponse>(
           `/api/v1/jjwxc/catalog-search?query=${encodeURIComponent(query)}&limit=100`,
         )
       : Promise.resolve(null),
-    query
-      ? Promise.resolve(null)
-      : fetchApi<JjwxcNovelPage>("/api/v1/jjwxc/novels?sort=favorites&limit=200"),
     fetchApi<JjwxcChannelRankingResponse>(
       "/api/v1/jjwxc/channel-rankings?ranking_key=channel_gold",
     ),
@@ -42,7 +37,6 @@ export default async function NovelsPage({
     ),
   ]);
   const searchCatalog = searchResult.status === "fulfilled" ? searchResult.value : null;
-  const catalog = catalogResult.status === "fulfilled" ? catalogResult.value : null;
   const emptyRanking = (
     key: "channel_gold" | "newcomer",
     label: string,
@@ -115,21 +109,11 @@ export default async function NovelsPage({
       <ChannelRankings channelGold={gold} newcomer={newcomer} />
 
       {!query ? (
-        <>
-          <section className="catalog-results-heading">
-            <div>
-              <p className="eyebrow">Searchable catalog</p>
-              <h2>作品索引</h2>
-            </div>
-          </section>
-          {catalog ? (
-            <NovelExplorer novels={catalog.items} />
-          ) : (
-            <section className="state-panel">
-              <p>分析数据服务暂不可用。</p>
-            </section>
-          )}
-        </>
+        <section className="catalog-search-prompt">
+          <p className="eyebrow">SEARCH FIRST · NO BULK LIST</p>
+          <h2>输入作品名或作者名即可检索</h2>
+          <p>页面不再铺开全部已采集作品；只有搜索命中的结果会显示。</p>
+        </section>
       ) : null}
     </main>
   );

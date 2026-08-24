@@ -215,6 +215,15 @@ class JjwxcMultivariateResponse(BaseModel):
     click_definition: Literal["average_non_v_chapter_click_count"] = (
         "average_non_v_chapter_click_count"
     )
+    v_click_definition: Literal["average_v_chapter_click_count"] = (
+        "average_v_chapter_click_count"
+    )
+    correlation_method: Literal["pearson_log1p_zscore_pairwise_complete"] = (
+        "pearson_log1p_zscore_pairwise_complete"
+    )
+    available_days: tuple[str, ...]
+    selected_novel_ids: tuple[str, ...]
+    cohort_items: tuple[JjwxcNovel, ...]
     timeline: tuple[JjwxcTrendPoint, ...]
     normalized_timeline: tuple[JjwxcNormalizedTrendPoint, ...]
     summaries: tuple[JjwxcMetricSummary, ...]
@@ -500,8 +509,23 @@ def register_jjwxc_routes(
         "/api/v1/jjwxc/analytics/multivariate",
         response_model=JjwxcMultivariateResponse,
     )
-    def multivariate_analytics() -> JjwxcMultivariateResponse:
-        catalog, data_mode = load_catalog(session_factory)
+    def multivariate_analytics(
+        novel_ids: str | None = Query(
+            default=None,
+            max_length=259,
+            pattern=r"^[1-9][0-9]{0,11}(,[1-9][0-9]{0,11}){0,19}$",
+        ),
+    ) -> JjwxcMultivariateResponse:
+        selected_novel_ids = tuple(dict.fromkeys(novel_ids.split(","))) if novel_ids else ()
+        catalog, data_mode = load_catalog(
+            session_factory,
+            novel_ids=frozenset(selected_novel_ids) if selected_novel_ids else None,
+        )
+        if selected_novel_ids and (
+            data_mode != "database_snapshot"
+            or {item.novel_id for item in catalog.novels} != set(selected_novel_ids)
+        ):
+            raise HTTPException(status_code=404, detail="jjwxc_analytics_cohort_not_found")
         return JjwxcMultivariateResponse(
             data_mode=data_mode,
             history_source=(
@@ -509,6 +533,12 @@ def register_jjwxc_routes(
                 if data_mode == "database_snapshot"
                 else "project_snapshot_fixture"
             ),
+            available_days=(
+                available_snapshot_days(session_factory)
+                or tuple(item.day for item in catalog.trends)
+            ),
+            selected_novel_ids=selected_novel_ids,
+            cohort_items=catalog.novels,
             timeline=catalog.trends,
             normalized_timeline=tuple(
                 JjwxcNormalizedTrendPoint.model_validate(item)
