@@ -222,6 +222,9 @@ class JjwxcMultivariateResponse(BaseModel):
         "average_non_v_chapter_click_count"
     )
     v_click_definition: Literal["average_v_chapter_click_count"] = "average_v_chapter_click_count"
+    v_retention_definition: Literal[
+        "average_v_chapter_click_count / average_non_v_chapter_click_count"
+    ] = "average_v_chapter_click_count / average_non_v_chapter_click_count"
     correlation_method: Literal["pearson_log1p_zscore_pairwise_complete"] = (
         "pearson_log1p_zscore_pairwise_complete"
     )

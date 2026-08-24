@@ -138,7 +138,17 @@ export function NovelExplorer({ novels }: { novels: JjwxcNovel[] }) {
                 </dd>
               </div>
               <div>
-                <dt>点击覆盖</dt>
+                <dt>V/非 V 留存比（代理）</dt>
+                <dd>
+                  {novel.v_to_non_v_click_retention_basis_points === null
+                    ? "缺少共同值"
+                    : `${(
+                        novel.v_to_non_v_click_retention_basis_points / 100
+                      ).toFixed(1)}%`}
+                </dd>
+              </div>
+              <div>
+                <dt>可见点击覆盖</dt>
                 <dd>
                   {novel.chapter_click_coverage_count}/
                   {novel.non_v_chapter_count + novel.v_chapter_count || "—"}

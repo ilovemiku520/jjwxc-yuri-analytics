@@ -101,13 +101,20 @@ def test_multivariate_analytics_preserves_missingness_and_matrix_shape() -> None
     assert payload["interpretation"] == "descriptive_association_only"
     assert payload["correlation_method"] == "pearson_log1p_zscore_pairwise_complete"
     assert payload["v_click_definition"] == "average_v_chapter_click_count"
+    assert payload["v_retention_definition"] == (
+        "average_v_chapter_click_count / average_non_v_chapter_click_count"
+    )
     assert len(payload["cohort_items"]) == 8
     assert len(payload["timeline"]) == 8
     assert len(payload["normalized_timeline"]) == 8
     assert payload["normalized_timeline"][0]["values"]["reviews"] == 10_000
-    assert len(payload["correlation_matrix"]) == 36
+    assert len(payload["correlation_matrix"]) == 49
     assert all(
         cell["x_metric"] != "v_clicks" and cell["y_metric"] != "v_clicks"
+        for cell in payload["correlation_matrix"]
+    )
+    assert any(
+        cell["x_metric"] == "v_retention" or cell["y_metric"] == "v_retention"
         for cell in payload["correlation_matrix"]
     )
     click_summary = next(item for item in payload["summaries"] if item["metric"] == "clicks")

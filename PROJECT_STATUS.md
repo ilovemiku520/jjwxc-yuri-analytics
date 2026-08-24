@@ -37,8 +37,9 @@ The first bounded real run stored 200 ranking rows from one public ranking reque
 top 10 public novel summaries. API projections exclude all synthetic Fixture rows whenever real
 `public_candidate` snapshots exist, so demonstration and real observations cannot be blended.
 
-The deployed website currently reads 56 detailed real novels from 59 stored public snapshots across
-two observation days. Ten authors have real public profile aggregates covering nonlocked works, author
+The canonical database contains 64 real novel records across observation days; the deployed website's
+latest-day analysis cohort currently contains 56 detailed real novels.
+Ten authors have real public profile aggregates covering nonlocked works, author
 favorites, observed-work favorites, nonlocked-work words and nonlocked-work points. Locked works
 are excluded from the author work/word/point totals. Incomplete profiles are labeled with their
 coverage and receive a matching score penalty rather than being treated as complete. The rating is
@@ -46,16 +47,22 @@ explicitly cohort-relative public-data performance, not literary quality.
 
 Cross-sectional correlation now applies `log(1+x)` to nonnegative count variables, explicitly
 Z-standardizes each pair and calculates pairwise-complete Pearson coefficients. The website exposes
-the method, sample size and a blue-to-red signed scale; V-chapter clicks are excluded from this matrix
-because current public coverage is absent. The adjustable comparison only displays coefficients with
+the method, sample size and a blue-to-red signed scale; raw V-chapter clicks are excluded from this
+matrix, while the derived V/non-V click-retention proxy is included only for pairwise-complete works.
+The proxy is `average V chapter clicks / average non-V chapter clicks`, is not capped at 100%, and is
+explicitly not labeled as unique-reader retention. The adjustable comparison only displays
+coefficients with
 at least 30 pairwise-complete observations and supplements Pearson with Spearman rank correlation,
 first and second central moments, covariance and an approximate Fisher-z 95% interval while stating
 that this floor is not a significance guarantee. Timeline totals
 can also be converted to per-observed-work means without double-dividing chapter-click averages.
-The public chapter-click response currently
-covers 49 novels for non-V clicks and zero for V clicks. The parser now preserves V-click values found
+The current 56-work analysis cohort covers 49 novels for non-V clicks and zero for V clicks. For novel
+7630015 specifically, all 12 non-V chapter clicks are visible and all 68 V chapter clicks are missing,
+so its visible-click chapter coverage is 12/80 (15%). Missing V chapters remain in the coverage
+denominator but are never filled with zero and do not alter the non-V mean. The parser preserves
+V-click values found
 inline in an authenticated page instead of overwriting them with missing public-response values; the
-UI reports the exact V-click coverage rather than implying that absent values are zero.
+UI reports the exact V-click and retention-proxy coverage rather than implying that absent values are zero.
 
 The former 98% figure below describes the completed Pixiv-oriented baseline, not the new
 JJWXC product roadmap.

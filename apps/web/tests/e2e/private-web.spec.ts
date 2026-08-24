@@ -87,6 +87,11 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
       .getByRole("button", { name: "V 章均点击", exact: true }),
   ).toHaveCount(0);
   await expect(
+    page
+      .getByLabel("矩阵指标，至少选择两个")
+      .getByRole("button", { name: "V/非 V 点击留存比（代理）", exact: true }),
+  ).toBeVisible();
+  await expect(
     page.getByRole("heading", { name: "作品与作者公开数据表现评级" }),
   ).toBeVisible();
   await expect(page.getByLabel("作品评分排行")).toBeVisible();
@@ -120,6 +125,7 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
     page.getByRole("button", { name: "V 章均点击" }).first(),
   ).toBeVisible();
   await expect(page.getByText("V 章点击覆盖：1/2 部作品")).toBeVisible();
+  await expect(page.getByText("留存代理覆盖：1/2 部作品", { exact: false })).toBeVisible();
   await expect(page.getByLabel("统计时间范围")).toBeVisible();
   await page.getByLabel("开始日期").fill("2026-08-23");
   await expect(page.getByText(/1个快照日/u)).toBeVisible();

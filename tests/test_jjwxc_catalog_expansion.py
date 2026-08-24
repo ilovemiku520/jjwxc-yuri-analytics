@@ -179,3 +179,20 @@ def test_click_jsonp_preserves_authenticated_inline_vip_clicks() -> None:
     assert enriched.non_v_chapter_count == 1
     assert enriched.v_chapter_count == 1
     assert enriched.chapter_click_coverage_count == 2
+    assert enriched.v_to_non_v_click_retention_basis_points == 6_000
+
+
+def test_click_retention_proxy_preserves_missing_v_clicks() -> None:
+    candidate = parse_novel_page(
+        """
+        <meta charset="gb18030"><h1>《测试》</h1>
+        <a href="oneauthor.php?authorid=7">作者专栏</a><p>作者：作者甲</p>
+        <p>文章类型：原创-百合-近代现代-爱情 作品视角：互攻 文章进度：连载
+        全文字数：7,300字</p><div id="novelintro">都市成长。</div>
+        <p>内容标签： 都市 HE 主角：甲 总书评数：10 当前被收藏数：20 文章积分：30</p>
+        """.encode("gb18030"),
+        novel_id="88",
+        observed_at=datetime(2026, 8, 24, tzinfo=UTC),
+    ).model_copy(update={"average_non_v_chapter_click_count": 500})
+
+    assert candidate.v_to_non_v_click_retention_basis_points is None

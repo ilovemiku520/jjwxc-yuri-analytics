@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 
 class JjwxcNovel(BaseModel):
@@ -35,6 +35,16 @@ class JjwxcNovel(BaseModel):
     tags: tuple[str, ...] = Field(default=(), max_length=20)
     observed_at: datetime
     source_mode: Literal["synthetic_fixture", "public_candidate"]
+
+    @computed_field
+    @property
+    def v_to_non_v_click_retention_basis_points(self) -> int | None:
+        """Return the V/non-V chapter-click ratio without treating missing clicks as zero."""
+        non_v_clicks = self.average_non_v_chapter_click_count
+        v_clicks = self.average_v_chapter_click_count
+        if non_v_clicks is None or v_clicks is None or non_v_clicks <= 0:
+            return None
+        return round(v_clicks * 10_000 / non_v_clicks)
 
     @field_validator("observed_at")
     @classmethod

@@ -16,6 +16,7 @@ MetricName = Literal[
     "words",
     "clicks",
     "v_clicks",
+    "v_retention",
     "synopsis_chars",
 ]
 TimelineMetricName = Literal[
@@ -33,6 +34,7 @@ class MetricDefinition:
     name: MetricName
     label: str
     attribute: str
+    scale_divisor: float = 1.0
 
 
 NOVEL_METRICS = (
@@ -42,6 +44,12 @@ NOVEL_METRICS = (
     MetricDefinition("words", "全文字数", "word_count"),
     MetricDefinition("clicks", "非 V 章节章均点击数", "average_non_v_chapter_click_count"),
     MetricDefinition("v_clicks", "V 章节章均点击数", "average_v_chapter_click_count"),
+    MetricDefinition(
+        "v_retention",
+        "V/非 V 点击留存比（代理）",
+        "v_to_non_v_click_retention_basis_points",
+        10_000.0,
+    ),
     MetricDefinition("synopsis_chars", "文案字符数", "synopsis_char_count"),
 )
 
@@ -64,7 +72,7 @@ def metric_summary(
 ) -> dict[str, object]:
     """Summarize one cross-sectional metric while preserving missingness."""
     values = [
-        float(value)
+        float(value) / definition.scale_divisor
         for novel in novels
         if (value := getattr(novel, definition.attribute)) is not None
     ]
@@ -112,7 +120,10 @@ def correlation_matrix(novels: tuple[JjwxcNovel, ...]) -> tuple[dict[str, object
     for y_definition in CORRELATION_METRICS:
         for x_definition in CORRELATION_METRICS:
             pairs = [
-                (float(x_value), float(y_value))
+                (
+                    float(x_value) / x_definition.scale_divisor,
+                    float(y_value) / y_definition.scale_divisor,
+                )
                 for novel in novels
                 if (x_value := getattr(novel, x_definition.attribute)) is not None
                 and (y_value := getattr(novel, y_definition.attribute)) is not None

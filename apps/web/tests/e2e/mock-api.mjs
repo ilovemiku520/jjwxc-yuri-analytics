@@ -19,6 +19,7 @@ const jjwxcNovels = [
     non_v_chapter_count: 18,
     v_chapter_count: 12,
     chapter_click_coverage_count: 30,
+    v_to_non_v_click_retention_basis_points: 5275,
     synopsis_char_count: 132,
     synopsis_sentence_count: 6,
     synopsis_theme_terms: ["都市", "成长"],
@@ -43,6 +44,7 @@ const jjwxcNovels = [
     non_v_chapter_count: 20,
     v_chapter_count: 0,
     chapter_click_coverage_count: 0,
+    v_to_non_v_click_retention_basis_points: null,
     synopsis_char_count: 168,
     synopsis_sentence_count: 7,
     synopsis_theme_terms: ["救赎", "历史"],
@@ -78,8 +80,12 @@ const jjwxcMetrics = [
   "words",
   "clicks",
   "v_clicks",
+  "v_retention",
   "synopsis_chars",
 ];
+const jjwxcMatrixMetrics = jjwxcMetrics.filter(
+  (metric) => metric !== "v_clicks",
+);
 const jjwxcTimeline = [
   {
     day: "2026-08-22",
@@ -139,12 +145,21 @@ const jjwxcSummaries = jjwxcMetrics.map((metric) => ({
     words: "全文字数",
     clicks: "非 V 章节章均点击数",
     v_clicks: "V 章节章均点击数",
+    v_retention: "V/非 V 点击留存比（代理）",
     synopsis_chars: "文案字符数",
   }[metric],
-  observed_count: metric === "clicks" || metric === "v_clicks" ? 1 : 2,
-  missing_count: metric === "clicks" || metric === "v_clicks" ? 1 : 0,
+  observed_count:
+    metric === "clicks" || metric === "v_clicks" || metric === "v_retention"
+      ? 1
+      : 2,
+  missing_count:
+    metric === "clicks" || metric === "v_clicks" || metric === "v_retention"
+      ? 1
+      : 0,
   coverage_basis_points:
-    metric === "clicks" || metric === "v_clicks" ? 5000 : 10000,
+    metric === "clicks" || metric === "v_clicks" || metric === "v_retention"
+      ? 5000
+      : 10000,
   minimum: 100,
   maximum: 200,
   mean: 150,
@@ -154,18 +169,18 @@ const jjwxcSummaries = jjwxcMetrics.map((metric) => ({
   p75: 175,
   coefficient_of_variation: 0.333,
 }));
-const jjwxcCorrelationMatrix = jjwxcMetrics.flatMap((yMetric) =>
-  jjwxcMetrics.map((xMetric) => ({
+const jjwxcCorrelationMatrix = jjwxcMatrixMetrics.flatMap((yMetric) =>
+  jjwxcMatrixMetrics.map((xMetric) => ({
     x_metric: xMetric,
     y_metric: yMetric,
     paired_count:
-      ["clicks", "v_clicks"].includes(xMetric) ||
-      ["clicks", "v_clicks"].includes(yMetric)
+      ["clicks", "v_retention"].includes(xMetric) ||
+      ["clicks", "v_retention"].includes(yMetric)
         ? 1
         : 2,
     coefficient:
-      ["clicks", "v_clicks"].includes(xMetric) ||
-      ["clicks", "v_clicks"].includes(yMetric)
+      ["clicks", "v_retention"].includes(xMetric) ||
+      ["clicks", "v_retention"].includes(yMetric)
         ? null
         : 1,
   })),
@@ -226,6 +241,8 @@ function payloadFor(url) {
       interpretation: "descriptive_association_only",
       click_definition: "average_non_v_chapter_click_count",
       v_click_definition: "average_v_chapter_click_count",
+      v_retention_definition:
+        "average_v_chapter_click_count / average_non_v_chapter_click_count",
       correlation_method: "pearson_log1p_zscore_pairwise_complete",
       available_days: ["2026-08-22", "2026-08-23"],
       selected_novel_ids: selectedIds,

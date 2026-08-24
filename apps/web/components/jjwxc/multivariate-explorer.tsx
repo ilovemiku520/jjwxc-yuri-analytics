@@ -57,6 +57,7 @@ const timelineMetrics: Array<{ key: JjwxcTimelineMetricName; label: string }> =
 
 const allMetrics: Array<{ key: JjwxcMetricName; label: string }> = [
   ...timelineMetrics,
+  { key: "v_retention", label: "V/非 V 点击留存比（代理）" },
   { key: "synopsis_chars", label: "文案字符数" },
 ];
 
@@ -129,6 +130,11 @@ function novelMetricValue(
   if (metric === "words") return novel.word_count;
   if (metric === "clicks") return novel.average_non_v_chapter_click_count;
   if (metric === "v_clicks") return novel.average_v_chapter_click_count;
+  if (metric === "v_retention") {
+    return novel.v_to_non_v_click_retention_basis_points === null
+      ? null
+      : novel.v_to_non_v_click_retention_basis_points / 10_000;
+  }
   return novel.synopsis_char_count;
 }
 
@@ -703,6 +709,9 @@ export function MultivariateExplorer({
   const vClickCoverage = data.cohort_items.filter(
     (novel) => novel.average_v_chapter_click_count !== null,
   ).length;
+  const retentionCoverage = data.cohort_items.filter(
+    (novel) => novel.v_to_non_v_click_retention_basis_points !== null,
+  ).length;
   const filteredTimeline = useMemo(
     () =>
       data.timeline.filter(
@@ -865,6 +874,7 @@ export function MultivariateExplorer({
         <p className="analysis-note v-click-coverage" role="status">
           V 章点击覆盖：{vClickCoverage}/{data.cohort_items.length} 部作品。 V
           章数值只在已登录作品页提供时保存；公开点击接口缺失该字段时不会再覆盖登录页中的原值。
+          留存代理覆盖：{retentionCoverage}/{data.cohort_items.length} 部作品。
         </p>
       </section>
 
@@ -897,6 +907,9 @@ export function MultivariateExplorer({
           所有非负计数先执行 log(1+x) 并做 Z-score 标准化，再按成对完整样本计算
           Pearson r；
           这降低了积分、点击等长尾变量的极端值影响。矩阵使用所选作品集合的最新快照。
+          “V/非 V 点击留存比（代理）”按 V 章均点击 ÷ 非 V
+          章均点击计算，仅纳入两侧均可见且非 V 均值大于 0
+          的作品；它不是去重读者留存率，也不用于因果推断。
         </p>
       </section>
 

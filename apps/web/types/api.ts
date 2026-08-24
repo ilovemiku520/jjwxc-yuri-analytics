@@ -421,6 +421,7 @@ export interface JjwxcNovel {
   non_v_chapter_count: number;
   v_chapter_count: number;
   chapter_click_coverage_count: number;
+  v_to_non_v_click_retention_basis_points: number | null;
   synopsis_char_count: number | null;
   synopsis_sentence_count: number | null;
   synopsis_theme_terms: string[];
@@ -551,11 +552,12 @@ export type JjwxcMetricName =
   | "words"
   | "clicks"
   | "v_clicks"
+  | "v_retention"
   | "synopsis_chars";
 
 export type JjwxcTimelineMetricName = Exclude<
   JjwxcMetricName,
-  "synopsis_chars"
+  "synopsis_chars" | "v_retention"
 >;
 
 export interface JjwxcMetricSummary {
@@ -592,6 +594,7 @@ export interface JjwxcMultivariateResponse {
   interpretation: "descriptive_association_only";
   click_definition: "average_non_v_chapter_click_count";
   v_click_definition: "average_v_chapter_click_count";
+  v_retention_definition: "average_v_chapter_click_count / average_non_v_chapter_click_count";
   correlation_method: "pearson_log1p_zscore_pairwise_complete";
   available_days: string[];
   selected_novel_ids: string[];
