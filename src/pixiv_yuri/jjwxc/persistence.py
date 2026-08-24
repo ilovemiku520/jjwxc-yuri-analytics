@@ -75,6 +75,36 @@ class JjwxcNovelRecord(Base):
     )
 
 
+class JjwxcCatalogIndexRecord(Base):
+    """Lightweight title/author index discovered from the public yuri bookbase."""
+
+    __tablename__ = "jjwxc_catalog_index"
+    __table_args__ = (
+        CheckConstraint(f"status IN ({NOVEL_STATUSES})", name="valid_jjwxc_catalog_status"),
+        CheckConstraint("word_count >= 0", name="nonnegative_jjwxc_catalog_words"),
+        CheckConstraint("points >= 0", name="nonnegative_jjwxc_catalog_points"),
+        CheckConstraint("source_page >= 1", name="positive_jjwxc_catalog_source_page"),
+        Index("uq_jjwxc_catalog_index_novel", "novel_id", unique=True),
+        Index("ix_jjwxc_catalog_index_title", "title"),
+        Index("ix_jjwxc_catalog_index_author_name", "author_display_name"),
+        {"schema": INGEST_SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(PRIMARY_KEY_TYPE, primary_key=True, autoincrement=True)
+    novel_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    author_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    author_display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    novel_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    word_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    points: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source_page: Mapped[int] = mapped_column(Integer, nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class JjwxcNovelSnapshot(Base):
     """Immutable aggregate metrics and non-reconstructable synopsis features."""
 

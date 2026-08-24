@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from pixiv_yuri.jjwxc.catalog_parser import (
     enrich_candidate_with_chapters,
+    parse_bookbase_page,
     parse_channel_catalog,
     parse_chapter_click_payload,
     parse_chapter_directory,
@@ -33,6 +34,33 @@ def test_channel_parser_extracts_both_named_lists_and_discovery_union() -> None:
     assert catalog.rankings["channel_gold"][0].title == "金榜作品"
     assert catalog.rankings["newcomer"][0].source_rank_id == "1068"
     assert catalog.discovered_novel_ids == ("101", "202", "303")
+
+
+def test_bookbase_parser_extracts_minimal_search_index_without_synopsis() -> None:
+    payload = """
+    <meta charset="gb18030">
+    <p>共 <font color="red"> 2222</font> 页, 当前为第 <font color="red"> 7 </font>页</p>
+    <table class="cytable"><tbody>
+      <tr><td>作者</td><td>作品</td><td>类型</td><td>进度</td><td>字数</td><td>积分</td><td>发表时间</td></tr>
+      <tr>
+        <td><a href="oneauthor.php?authorid=71">作者甲</a></td>
+        <td><a href="onebook.php?novelid=88" title="简介：不能入库">测试作品</a></td>
+        <td>原创-百合-近代现代-爱情-互攻</td><td><font>完结</font></td>
+        <td>123,456</td><td>8,765,432</td><td>2026-08-23 20:32:26</td>
+      </tr>
+    </tbody></table>
+    """.encode("gb18030")
+
+    page = parse_bookbase_page(payload)
+
+    assert page.current_page == 7
+    assert page.total_pages == 2222
+    assert len(page.entries) == 1
+    assert page.entries[0].novel_id == "88"
+    assert page.entries[0].author_display_name == "作者甲"
+    assert page.entries[0].word_count == 123_456
+    assert page.entries[0].points == 8_765_432
+    assert "不能入库" not in page.entries[0].model_dump_json()
 
 
 def test_chapter_parser_keeps_clicks_and_vip_boundary_without_prose() -> None:

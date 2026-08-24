@@ -231,6 +231,8 @@ services:
     profiles: ["live-jjwxc"]
     entrypoint: ["jjyuri-jjwxc-catalog"]
     command:
+      - --index-pages
+      - ${JJYURI_INDEX_PAGES:-5}
       - --hydrate-limit
       - ${JJYURI_HYDRATE_LIMIT:-25}
       - --request-interval-seconds

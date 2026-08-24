@@ -11,20 +11,25 @@ import urllib.error
 from datetime import UTC, datetime, timedelta
 from datetime import time as datetime_time
 from pathlib import Path
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from pixiv_yuri.ingest.models import DiscoveryCheckpoint
 from pixiv_yuri.jjwxc.catalog_parser import (
     CHANNEL_RANKING_KEYS,
+    JjwxcBookbasePage,
     JjwxcChannelCatalog,
     enrich_candidate_with_chapters,
+    parse_bookbase_page,
     parse_channel_catalog,
     parse_chapter_directory,
 )
 from pixiv_yuri.jjwxc.html_parser import parse_novel_page
 from pixiv_yuri.jjwxc.persistence import (
+    JjwxcCatalogIndexRecord,
     JjwxcChannelRankingSnapshot,
     JjwxcChapterSnapshot,
     JjwxcDiscoveryRecord,
@@ -34,19 +39,26 @@ from pixiv_yuri.jjwxc.source_cache import JjwxcSourceCache
 from pixiv_yuri.shared.database import build_engine, build_session_factory
 
 CHANNEL_URL = "https://www.jjwxc.net/channel/bh.php"
+_BOOKBASE_URL = "https://www.jjwxc.net/bookbase.php"
 _NOVEL_URL = "https://www.jjwxc.net/onebook.php?novelid={novel_id}"
 _CLICK_URL = (
     "https://s8-static.jjwxc.net/getnovelclick.php?novelid={novel_id}"
     "&jsonpcallback=novelclick"
 )
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
-_PRIORITIES = {"channel_gold": 100, "newcomer": 90, "channel_catalog": 50}
+_PRIORITIES = {
+    "channel_gold": 100,
+    "newcomer": 90,
+    "channel_catalog": 50,
+    "bookbase_catalog": 20,
+}
 
 
 def collect_channel_catalog(
     session: Session,
     *,
     hydrate_limit: int,
+    index_page_limit: int,
     request_interval_seconds: float,
     cache_dir: Path,
     cache_ttl_seconds: int = 24 * 60 * 60,
@@ -56,6 +68,8 @@ def collect_channel_catalog(
         raise RuntimeError("network_disabled")
     if not 0 <= hydrate_limit <= 500:
         raise ValueError("hydrate_limit_out_of_range")
+    if not 0 <= index_page_limit <= 50:
+        raise ValueError("index_page_limit_out_of_range")
     if request_interval_seconds < 1.0:
         raise ValueError("request_interval_too_short")
     observed_at = now or datetime.now(UTC)
@@ -85,6 +99,24 @@ def collect_channel_catalog(
     )
     discovered = _upsert_discovery_queue(session, catalog=catalog, observed_at=observed_at)
     session.commit()
+
+    (
+        bookbase_network_requests,
+        bookbase_cache_hits,
+        bookbase_pages_scanned,
+        bookbase_entries_seen,
+        bookbase_entries_created,
+        bookbase_total_pages,
+        bookbase_failed_pages,
+    ) = _scan_bookbase_pages(
+        session,
+        cache=cache,
+        page_limit=index_page_limit,
+        request_interval_seconds=request_interval_seconds,
+        observed_at=observed_at,
+    )
+    network_requests += bookbase_network_requests
+    cache_hits += bookbase_cache_hits
 
     hydrated = 0
     failed = 0
@@ -185,6 +217,11 @@ def collect_channel_catalog(
         "newcomer_count": len(catalog.rankings["newcomer"]),
         "channel_discovered_count": len(catalog.discovered_novel_ids),
         "new_discovery_records": discovered,
+        "bookbase_pages_scanned": bookbase_pages_scanned,
+        "bookbase_entries_seen": bookbase_entries_seen,
+        "bookbase_entries_created": bookbase_entries_created,
+        "bookbase_total_pages": bookbase_total_pages,
+        "bookbase_failed_pages": bookbase_failed_pages,
         "created_ranking_rows": created_rankings,
         "hydrated_novel_snapshots": hydrated,
         "created_chapter_rows": chapters_created,
@@ -194,6 +231,172 @@ def collect_channel_catalog(
         "backfill_remaining": pending is not None,
         "raw_payload_location": "private_ttl_cache",
     }
+
+
+def _scan_bookbase_pages(
+    session: Session,
+    *,
+    cache: JjwxcSourceCache,
+    page_limit: int,
+    request_interval_seconds: float,
+    observed_at: datetime,
+) -> tuple[int, int, int, int, int, int | None, int]:
+    if page_limit == 0:
+        return (0, 0, 0, 0, 0, None, 0)
+    checkpoint = session.scalar(
+        select(DiscoveryCheckpoint).where(
+            DiscoveryCheckpoint.provider == "jjwxc",
+            DiscoveryCheckpoint.discovery_scope == "bookbase_yuri_all",
+            DiscoveryCheckpoint.seed_version == "v1",
+        )
+    )
+    if checkpoint is None:
+        checkpoint = DiscoveryCheckpoint(
+            provider="jjwxc",
+            discovery_scope="bookbase_yuri_all",
+            seed_version="v1",
+            cursor={"next_page": 1, "completed_sweeps": 0},
+            updated_at=observed_at,
+        )
+        session.add(checkpoint)
+        session.flush()
+    raw_next_page = checkpoint.cursor.get("next_page", 1)
+    next_page = raw_next_page if isinstance(raw_next_page, int) and raw_next_page >= 1 else 1
+    network_requests = 0
+    cache_hits = 0
+    pages_scanned = 0
+    entries_seen = 0
+    entries_created = 0
+    failed_pages = 0
+    total_pages: int | None = None
+    completed_sweeps = int(checkpoint.cursor.get("completed_sweeps", 0) or 0)
+    for _ in range(page_limit):
+        query = urlencode(
+            {
+                "xx": 3,
+                "sortType": 1,
+                "isfinish": 0,
+                "collectiontypes": "",
+                "searchkeywords": "",
+                "m_p": next_page,
+                "page": next_page,
+            }
+        )
+        url = f"{_BOOKBASE_URL}?{query}"
+        try:
+            time.sleep(request_interval_seconds)
+            fetched = cache.fetch(
+                url,
+                allowed_hosts=frozenset({"www.jjwxc.net"}),
+                expected_content_types=("text/html",),
+                max_bytes=500_000,
+            )
+            network_requests += int(not fetched.cache_hit)
+            cache_hits += int(fetched.cache_hit)
+            page = parse_bookbase_page(fetched.payload)
+            if page.current_page != next_page:
+                raise ValueError("bookbase_page_cursor_mismatch")
+            created = _upsert_bookbase_page(
+                session,
+                page=page,
+                source_page=next_page,
+                observed_at=observed_at,
+            )
+            entries_seen += len(page.entries)
+            entries_created += created
+            pages_scanned += 1
+            total_pages = page.total_pages
+            if next_page >= page.total_pages:
+                next_page = 1
+                completed_sweeps += 1
+            else:
+                next_page += 1
+            checkpoint.cursor = {
+                "next_page": next_page,
+                "total_pages": total_pages,
+                "completed_sweeps": completed_sweeps,
+            }
+            checkpoint.last_success_at = observed_at
+            checkpoint.updated_at = observed_at
+            session.commit()
+        except (RuntimeError, ValueError, urllib.error.URLError, TimeoutError):
+            session.rollback()
+            failed_pages += 1
+            break
+    return (
+        network_requests,
+        cache_hits,
+        pages_scanned,
+        entries_seen,
+        entries_created,
+        total_pages,
+        failed_pages,
+    )
+
+
+def _upsert_bookbase_page(
+    session: Session,
+    *,
+    page: JjwxcBookbasePage,
+    source_page: int,
+    observed_at: datetime,
+) -> int:
+    novel_ids = [entry.novel_id for entry in page.entries]
+    existing_index = {
+        item.novel_id: item
+        for item in session.scalars(
+            select(JjwxcCatalogIndexRecord).where(
+                JjwxcCatalogIndexRecord.novel_id.in_(novel_ids)
+            )
+        ).all()
+    }
+    existing_queue = {
+        item.novel_id: item
+        for item in session.scalars(
+            select(JjwxcDiscoveryRecord).where(JjwxcDiscoveryRecord.novel_id.in_(novel_ids))
+        ).all()
+    }
+    created = 0
+    for entry in page.entries:
+        record = existing_index.get(entry.novel_id)
+        values = {
+            "title": entry.title,
+            "author_id": entry.author_id,
+            "author_display_name": entry.author_display_name,
+            "novel_type": entry.novel_type,
+            "status": entry.status,
+            "word_count": entry.word_count,
+            "points": entry.points,
+            "published_at": entry.published_at,
+            "source_page": source_page,
+            "last_seen_at": observed_at,
+        }
+        if record is None:
+            session.add(
+                JjwxcCatalogIndexRecord(
+                    novel_id=entry.novel_id,
+                    first_seen_at=observed_at,
+                    **values,
+                )
+            )
+            created += 1
+        else:
+            for field, value in values.items():
+                setattr(record, field, value)
+        queued = existing_queue.get(entry.novel_id)
+        if queued is None:
+            session.add(
+                JjwxcDiscoveryRecord(
+                    novel_id=entry.novel_id,
+                    source_kind="bookbase_catalog",
+                    priority=_PRIORITIES["bookbase_catalog"],
+                    status="pending",
+                    discovered_at=observed_at,
+                    next_fetch_at=observed_at,
+                    attempt_count=0,
+                )
+            )
+    return created
 
 
 def _store_channel_rankings(
@@ -285,9 +488,13 @@ def _error_code(error: Exception) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Discover both JJWXC yuri channel lists and hydrate a resumable batch."
+        description=(
+            "Discover JJWXC yuri channel lists, scan a resumable bookbase slice, "
+            "and hydrate a bounded detail batch."
+        )
     )
     parser.add_argument("--hydrate-limit", type=int, default=25)
+    parser.add_argument("--index-pages", type=int, default=5)
     parser.add_argument("--request-interval-seconds", type=float, default=2.0)
     parser.add_argument("--cache-ttl-hours", type=int, default=24)
     parser.add_argument("--cache-dir", default=os.getenv("JJYURI_CACHE_DIR", "var/cache/jjwxc"))
@@ -302,7 +509,8 @@ def main(argv: list[str] | None = None) -> int:
                     "status": "dry_run",
                     "channel_url": CHANNEL_URL,
                     "hydrate_limit": hydrate_limit,
-                    "maximum_planned_requests": 1 + hydrate_limit * 2,
+                    "index_pages": args.index_pages,
+                    "maximum_planned_requests": 1 + args.index_pages + hydrate_limit * 2,
                     "ranking_keys": CHANNEL_RANKING_KEYS,
                     "cache_dir": args.cache_dir,
                 },
@@ -320,6 +528,7 @@ def main(argv: list[str] | None = None) -> int:
             result = collect_channel_catalog(
                 session,
                 hydrate_limit=hydrate_limit,
+                index_page_limit=args.index_pages,
                 request_interval_seconds=args.request_interval_seconds,
                 cache_dir=Path(args.cache_dir),
                 cache_ttl_seconds=args.cache_ttl_hours * 60 * 60,

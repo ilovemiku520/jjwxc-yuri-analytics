@@ -42,6 +42,9 @@ def test_indexed_search_matches_title_or_author_and_channel_lists_are_explicit()
     with TestClient(create_app(lambda: None)) as client:
         title = client.get("/api/v1/jjwxc/search", params={"query": "向晚"})
         author = client.get("/api/v1/jjwxc/search", params={"query": "南汀"})
+        full_catalog = client.get(
+            "/api/v1/jjwxc/catalog-search", params={"query": "向晚"}
+        )
         channel = client.get(
             "/api/v1/jjwxc/channel-rankings", params={"ranking_key": "channel_gold"}
         )
@@ -50,6 +53,9 @@ def test_indexed_search_matches_title_or_author_and_channel_lists_are_explicit()
     assert title.json()["items"][0]["title"] == "向晚潮声"
     assert author.status_code == 200
     assert {item["author_display_name"] for item in author.json()["items"]} == {"南汀"}
+    assert full_catalog.status_code == 200
+    assert full_catalog.json()["coverage"] == "progressive_official_bookbase_index"
+    assert full_catalog.json()["items"][0]["detail_available"] is True
     assert channel.status_code == 200
     assert channel.json() == {
         "ranking_key": "channel_gold",

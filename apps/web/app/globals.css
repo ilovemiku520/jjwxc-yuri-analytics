@@ -758,6 +758,60 @@ a {
   margin: 0 0 0.5rem;
 }
 
+.catalog-index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.catalog-index-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: 1.1rem;
+  background: color-mix(in srgb, var(--surface) 94%, var(--accent-soft));
+  box-shadow: 0 10px 28px rgb(61 35 50 / 6%);
+}
+
+.catalog-index-card h2,
+.catalog-index-card p,
+.catalog-index-card dl {
+  margin: 0;
+}
+
+.catalog-index-card h2 {
+  font-size: 1.08rem;
+  line-height: 1.45;
+}
+
+.catalog-index-author {
+  color: var(--accent-strong);
+  font-weight: 650;
+}
+
+.catalog-index-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.catalog-index-metrics div {
+  padding: 0.65rem;
+  border-radius: 0.8rem;
+  background: var(--surface-muted);
+}
+
+.catalog-index-metrics dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.catalog-index-metrics dd {
+  margin: 0.2rem 0 0;
+  font-weight: 720;
+}
+
 .catalog-results-heading a {
   color: var(--accent-strong);
   font-size: 0.78rem;

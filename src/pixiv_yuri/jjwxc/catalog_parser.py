@@ -5,7 +5,9 @@ from __future__ import annotations
 import html as html_module
 import json
 import re
+from datetime import datetime
 from html.parser import HTMLParser
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +16,7 @@ from pixiv_yuri.jjwxc.models import JjwxcChapterMetric, JjwxcNovelCandidate
 
 _MAX_CLICK_BYTES = 500_000
 CHANNEL_RANKING_KEYS = ("channel_gold", "newcomer")
+_SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 class JjwxcChannelRankingEntry(BaseModel):
@@ -31,6 +34,28 @@ class JjwxcChannelCatalog(BaseModel):
 
     rankings: dict[str, tuple[JjwxcChannelRankingEntry, ...]]
     discovered_novel_ids: tuple[str, ...]
+
+
+class JjwxcBookbaseEntry(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    novel_id: str = Field(pattern=r"^[1-9][0-9]{0,11}$")
+    title: str = Field(min_length=1, max_length=200)
+    author_id: str = Field(pattern=r"^[1-9][0-9]{0,11}$")
+    author_display_name: str = Field(min_length=1, max_length=80)
+    novel_type: str = Field(min_length=1, max_length=100)
+    status: str = Field(pattern=r"^(连载|完结|暂停|锁定|未知)$")
+    word_count: int = Field(ge=0)
+    points: int = Field(ge=0)
+    published_at: datetime | None
+
+
+class JjwxcBookbasePage(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    current_page: int = Field(ge=1, le=100_000)
+    total_pages: int = Field(ge=1, le=100_000)
+    entries: tuple[JjwxcBookbaseEntry, ...] = Field(min_length=1, max_length=200)
 
 
 class _ChannelParser(HTMLParser):
@@ -135,6 +160,135 @@ def parse_channel_catalog(payload: bytes) -> JjwxcChannelCatalog:
     return JjwxcChannelCatalog(
         rankings=rankings,
         discovered_novel_ids=tuple(parser.discovered),
+    )
+
+
+class _BookbaseParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.entries: list[JjwxcBookbaseEntry] = []
+        self._table_depth = 0
+        self._in_row = False
+        self._in_cell = False
+        self._cell_parts: list[str] = []
+        self._cells: list[str] = []
+        self._anchor_role: str | None = None
+        self._anchor_parts: list[str] = []
+        self._author_id: str | None = None
+        self._author_name: str | None = None
+        self._novel_id: str | None = None
+        self._title: str | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {key: value or "" for key, value in attrs}
+        if tag == "table" and "cytable" in values.get("class", "").split():
+            self._table_depth = 1
+            return
+        if self._table_depth == 0:
+            return
+        if tag == "table":
+            self._table_depth += 1
+        elif tag == "tr":
+            self._in_row = True
+            self._cells = []
+            self._author_id = None
+            self._author_name = None
+            self._novel_id = None
+            self._title = None
+        elif tag == "td" and self._in_row:
+            self._in_cell = True
+            self._cell_parts = []
+        elif tag == "a" and self._in_cell:
+            href = values.get("href", "")
+            author = re.search(r"oneauthor\.php\?authorid=([1-9][0-9]{0,11})", href)
+            novel = re.search(r"onebook\.php\?novelid=([1-9][0-9]{0,11})", href)
+            if author is not None:
+                self._anchor_role = "author"
+                self._author_id = author.group(1)
+                self._anchor_parts = []
+            elif novel is not None:
+                self._anchor_role = "novel"
+                self._novel_id = novel.group(1)
+                self._anchor_parts = []
+
+    def handle_data(self, data: str) -> None:
+        if self._in_cell:
+            self._cell_parts.append(data)
+        if self._anchor_role is not None:
+            self._anchor_parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if self._table_depth == 0:
+            return
+        if tag == "a" and self._anchor_role is not None:
+            value = " ".join("".join(self._anchor_parts).split())
+            if self._anchor_role == "author":
+                self._author_name = value[:80]
+            else:
+                self._title = value[:200]
+            self._anchor_role = None
+            self._anchor_parts = []
+        elif tag == "td" and self._in_cell:
+            self._cells.append(" ".join("".join(self._cell_parts).split()))
+            self._in_cell = False
+        elif tag == "tr" and self._in_row:
+            self._finish_row()
+            self._in_row = False
+        elif tag == "table":
+            self._table_depth -= 1
+
+    def _finish_row(self) -> None:
+        if (
+            self._novel_id is None
+            or self._author_id is None
+            or not self._title
+            or not self._author_name
+            or len(self._cells) < 7
+        ):
+            return
+        status_text = self._cells[3]
+        status = next(
+            (item for item in ("完结", "连载", "暂停", "锁定") if item in status_text),
+            "未知",
+        )
+        published_at: datetime | None = None
+        if self._cells[6]:
+            try:
+                published_at = datetime.strptime(
+                    self._cells[6], "%Y-%m-%d %H:%M:%S"
+                ).replace(tzinfo=_SHANGHAI)
+            except ValueError:
+                published_at = None
+        self.entries.append(
+            JjwxcBookbaseEntry(
+                novel_id=self._novel_id,
+                title=self._title,
+                author_id=self._author_id,
+                author_display_name=self._author_name,
+                novel_type=self._cells[2][:100] or "未知",
+                status=status,
+                word_count=_optional_integer(self._cells[4]) or 0,
+                points=_optional_integer(self._cells[5]) or 0,
+                published_at=published_at,
+            )
+        )
+
+
+def parse_bookbase_page(payload: bytes) -> JjwxcBookbasePage:
+    """Parse one official yuri work-library page without retaining promotional copy."""
+    source = decode_jjwxc_html(payload)
+    parser = _BookbaseParser()
+    parser.feed(source)
+    parser.close()
+    total = re.search(r"共\s*<font[^>]*>\s*([0-9]+)\s*</font>\s*页", source)
+    current = re.search(r"当前为第\s*<font[^>]*>\s*([0-9]+)\s*</font>\s*页", source)
+    if total is None or current is None or not parser.entries:
+        raise JjwxcParseError("bookbase_catalog_missing")
+    deduplicated = {entry.novel_id: entry for entry in parser.entries}
+    return JjwxcBookbasePage(
+        current_page=int(current.group(1)),
+        total_pages=int(total.group(1)),
+        entries=tuple(deduplicated.values()),
     )
 
 

@@ -182,10 +182,10 @@ def test_openapi_contract_export_is_canonical_and_minimized(tmp_path: Path) -> N
     persisted_report = json.loads(report_path.read_text(encoding="utf-8"))
 
     assert report.status == "passed"
-    assert report.api_path_count == report.operation_count == 35
+    assert report.api_path_count == report.operation_count == 36
     assert report.sha256 == hashlib.sha256(canonical.encode()).hexdigest()
     assert persisted_report["sha256"] == report.sha256
-    assert validate_openapi_contract(json.loads(canonical)) == (35, 35)
+    assert validate_openapi_contract(json.loads(canonical)) == (36, 36)
 
 
 def test_phase2_exit_review_passes_private_boundary_and_blocks_publication(
@@ -202,14 +202,14 @@ def test_phase2_exit_review_passes_private_boundary_and_blocks_publication(
         "api.json": api_report,
         "postgres.json": {
             "status": "passed",
-            "migration_version": "20260824_0012",
+            "migration_version": "20260824_0013",
             "catalog_read_indexes": 5,
         },
         "openapi.json": {
             "status": "passed",
             "sha256": "a" * 64,
-            "api_path_count": 35,
-            "operation_count": 35,
+            "api_path_count": 36,
+            "operation_count": 36,
             "mutation_routes_exposed": False,
             "prohibited_fields_exposed": False,
         },
@@ -297,7 +297,7 @@ def test_phase2_exit_review_fails_when_operational_evidence_is_missing(
             "postgres.json",
             {
                 "status": "passed",
-                "migration_version": "20260824_0012",
+                "migration_version": "20260824_0013",
                 "catalog_read_indexes": 5,
             },
         ),
@@ -306,8 +306,8 @@ def test_phase2_exit_review_fails_when_operational_evidence_is_missing(
             {
                 "status": "passed",
                 "sha256": "a" * 64,
-                "api_path_count": 35,
-                "operation_count": 35,
+                "api_path_count": 36,
+                "operation_count": 36,
                 "mutation_routes_exposed": False,
                 "prohibited_fields_exposed": False,
             },

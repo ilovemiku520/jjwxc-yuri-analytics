@@ -458,6 +458,31 @@ export interface JjwxcSearchResponse {
   offset: number;
 }
 
+export interface JjwxcCatalogSearchItem {
+  novel_id: string;
+  title: string;
+  author_id: string;
+  author_display_name: string;
+  novel_type: string;
+  status: JjwxcNovelStatus;
+  word_count: number;
+  points: number;
+  published_at: string | null;
+  last_seen_at: string;
+  detail_available: boolean;
+}
+
+export interface JjwxcFullCatalogSearchResponse {
+  data_mode: "synthetic_fixture" | "database_snapshot";
+  query: string;
+  coverage: "progressive_official_bookbase_index";
+  match_fields: ["title", "author_display_name"];
+  items: JjwxcCatalogSearchItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface JjwxcChannelRankingItem {
   rank: number;
   novel_id: string;

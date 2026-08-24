@@ -24,9 +24,14 @@ from pixiv_yuri.jjwxc.database_catalog import (
     available_snapshot_days,
     load_catalog,
     search_catalog,
+    search_full_catalog_index,
 )
 from pixiv_yuri.jjwxc.demo import load_demo_catalog
-from pixiv_yuri.jjwxc.models import JjwxcNovel, JjwxcTrendPoint
+from pixiv_yuri.jjwxc.models import (
+    JjwxcCatalogSearchItem,
+    JjwxcNovel,
+    JjwxcTrendPoint,
+)
 from pixiv_yuri.jjwxc.persistence import (
     JjwxcAuthorRecord,
     JjwxcChannelRankingSnapshot,
@@ -79,6 +84,24 @@ class JjwxcSearchResponse(BaseModel):
         "author_display_name",
     )
     items: tuple[JjwxcNovel, ...]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    offset: int = Field(ge=0)
+
+
+class JjwxcFullCatalogSearchResponse(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    data_mode: DataMode
+    query: str
+    coverage: Literal["progressive_official_bookbase_index"] = (
+        "progressive_official_bookbase_index"
+    )
+    match_fields: tuple[Literal["title", "author_display_name"], ...] = (
+        "title",
+        "author_display_name",
+    )
+    items: tuple[JjwxcCatalogSearchItem, ...]
     total: int = Field(ge=0)
     limit: int = Field(ge=1, le=100)
     offset: int = Field(ge=0)
@@ -302,6 +325,31 @@ def register_jjwxc_routes(
             offset=offset,
         )
         return JjwxcSearchResponse(
+            data_mode=data_mode,
+            query=normalized,
+            items=items,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    @application.get(
+        "/api/v1/jjwxc/catalog-search",
+        response_model=JjwxcFullCatalogSearchResponse,
+    )
+    def search_full_catalog(
+        query: str = Query(min_length=1, max_length=100),
+        limit: int = Query(default=50, ge=1, le=100),
+        offset: int = Query(default=0, ge=0, le=100_000),
+    ) -> JjwxcFullCatalogSearchResponse:
+        normalized = " ".join(query.split())
+        items, total, data_mode = search_full_catalog_index(
+            session_factory,
+            query=normalized,
+            limit=limit,
+            offset=offset,
+        )
+        return JjwxcFullCatalogSearchResponse(
             data_mode=data_mode,
             query=normalized,
             items=items,

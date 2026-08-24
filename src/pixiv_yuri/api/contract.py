@@ -13,7 +13,7 @@ from typing import Any
 from pixiv_yuri.api.app import create_app
 
 CONTRACT_VERSION = "v1"
-EXPECTED_API_PATH_COUNT = 35
+EXPECTED_API_PATH_COUNT = 36
 PROHIBITED_SCHEMA_FIELDS = (
     "authorization",
     "cookie",

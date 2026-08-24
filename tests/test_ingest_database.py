@@ -79,6 +79,7 @@ class IngestModelTests(unittest.TestCase):
                 "api_consumer_access_audits",
                 "jjwxc_authors",
                 "jjwxc_novels",
+                "jjwxc_catalog_index",
                 "jjwxc_novel_snapshots",
                 "jjwxc_ranking_snapshots",
                 "jjwxc_channel_ranking_snapshots",

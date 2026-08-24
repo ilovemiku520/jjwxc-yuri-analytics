@@ -83,6 +83,24 @@ class JjwxcChapterMetric(BaseModel):
     click_count: int | None = Field(default=None, ge=0)
 
 
+class JjwxcCatalogSearchItem(BaseModel):
+    """One lightweight full-site catalog hit, optionally linked to detailed analytics."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    novel_id: str = Field(pattern=r"^[1-9][0-9]{0,11}$")
+    title: str = Field(min_length=1, max_length=200)
+    author_id: str = Field(pattern=r"^[1-9][0-9]{0,11}$")
+    author_display_name: str = Field(min_length=1, max_length=80)
+    novel_type: str = Field(min_length=1, max_length=100)
+    status: Literal["连载", "完结", "暂停", "锁定", "未知"]
+    word_count: int = Field(ge=0)
+    points: int = Field(ge=0)
+    published_at: datetime | None
+    last_seen_at: datetime
+    detail_available: bool
+
+
 class JjwxcTrendPoint(BaseModel):
     """Synthetic or canonical daily aggregate used by the private dashboard."""
 
