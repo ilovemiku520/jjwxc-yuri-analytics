@@ -626,3 +626,8 @@ request was made: Railway mounts volumes as root while the API image defaults to
 10001. The private `daily` Cron service now sets `RAILWAY_RUN_UID=0` so it can create
 its cache directory on the attached volume; the public Web and private API services
 remain non-root. The failed run did not write source data or change the database.
+
+After applying that variable, two manual execution checks exited normally. The public
+Web now reports 44 novel samples, 44 authors and 20 visible ranking positions for the
+2026-08-24 snapshot, replacing the earlier five-item cloud sample. The next scheduled
+run remains the authoritative daily observation and will continue the resumable cache.

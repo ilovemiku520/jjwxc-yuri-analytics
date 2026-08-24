@@ -40,8 +40,10 @@
    `PYURI_COHORT_IMPORT_TOKEN`；只为该服务生成公网域名。
 4. `daily`：由仓库内 `/.railway/railway.ts` 管理；设置
    `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}` 和 `JJYURI_ENABLE_NETWORK=true`，不生成公网域名；挂载
-   Volume 到 `/data/cache`。可用 `--index-pages` 与 `JJYURI_HYDRATE_LIMIT` 控制摘要扫描和详细补全量；
-   默认生产命令扫描 10 页、补全 39 部作品与 10 位作者，使单次运行请求上界为 99 次。
+   Volume 到 `/data/cache`。由于 Railway Volume 以 root 挂载，`daily` 通过
+   `RAILWAY_RUN_UID=0` 创建缓存目录；API 与 Web 仍以非 root 用户运行。可用 `--index-pages`
+   与 `JJYURI_HYDRATE_LIMIT` 控制摘要扫描和详细补全量；默认生产命令扫描 10 页、补全 39 部作品
+   与 10 位作者，使单次运行请求上界为 99 次。
 5. `backup`：由仓库内 `/.railway/railway.ts` 管理；设置
    `DATABASE_URL=${{Postgres.DATABASE_URL}}`，不生成公网域名；挂载 500MB Volume 到 `/backups`。
    UTC 每日 20:30（北京时间次日 04:30）执行 `pg_dump` custom-format 逻辑备份，先用
