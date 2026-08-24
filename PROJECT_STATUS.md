@@ -603,3 +603,20 @@ automatic deployment rules, health checks, migration command, Singapore replicas
 schedules, persistent volumes and secret-preservation boundary are declared in
 `.railway/railway.ts`. The production release therefore no longer depends on a local CLI
 upload or on this virtual machine remaining available.
+
+### Local high-window collection validation (2026-08-24)
+
+To validate the backfill path before changing the cloud schedule, a local run used a
+larger but still rate-limited window: 20 bookbase pages, 50 hydrated novels and 20
+author profiles at a two-second request interval. The run completed with 120 network
+requests, 50 hydrated novel snapshots, 4,249 new chapter rows and 20 author profiles;
+all 50 detail hydrations succeeded. The source bookbase returned an oversized response
+on its first page, so the resumable bookbase cursor remains pending and no raw body was
+persisted. The local database now contains 122 novels, 11,670 chapter snapshots and
+120 authors. This confirms that the larger window increases local coverage without
+weakening the public-data and cache-size controls.
+
+Railway deliberately remains on the bounded 99-request command
+(`--index-pages 10 --hydrate-limit 39 --author-limit 10`) because the acquisition
+ledger caps a single run at 100 requests. Additional cloud coverage should therefore
+come from the daily schedule and resumable backfill, not a single unbounded burst.
