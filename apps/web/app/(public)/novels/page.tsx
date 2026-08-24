@@ -107,14 +107,6 @@ export default async function NovelsPage({
       ) : null}
 
       <ChannelRankings channelGold={gold} newcomer={newcomer} />
-
-      {!query ? (
-        <section className="catalog-search-prompt">
-          <p className="eyebrow">SEARCH FIRST · NO BULK LIST</p>
-          <h2>输入作品名或作者名即可检索</h2>
-          <p>页面不再铺开全部已采集作品；只有搜索命中的结果会显示。</p>
-        </section>
-      ) : null}
     </main>
   );
 }

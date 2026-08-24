@@ -14,7 +14,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildTimelineAxisSpecs,
   formatAxisTick,
+  type TimelineAggregation,
 } from "../../lib/jjwxc/timeline-axis";
+import {
+  analyzeLogMomentCorrelation,
+  type LogMomentCorrelationStats,
+} from "../../lib/jjwxc/statistics";
 import type {
   JjwxcCorrelationCell,
   JjwxcMetricName,
@@ -63,23 +68,27 @@ const colors: Record<JjwxcTimelineMetricName, string> = {
 function rawValue(
   point: JjwxcTrendPoint,
   metric: JjwxcTimelineMetricName,
+  aggregation: TimelineAggregation = "total",
 ): number | null {
-  if (metric === "reviews") return point.total_review_count;
-  if (metric === "favorites") return point.total_favorite_count;
-  if (metric === "points") return point.total_points;
-  if (metric === "words") return point.total_word_count;
+  const divisor =
+    aggregation === "per_work" ? Math.max(1, point.observed_novel_count) : 1;
+  if (metric === "reviews") return point.total_review_count / divisor;
+  if (metric === "favorites") return point.total_favorite_count / divisor;
+  if (metric === "points") return point.total_points / divisor;
+  if (metric === "words") return point.total_word_count / divisor;
   if (metric === "clicks") return point.mean_non_v_chapter_click_count;
   return point.mean_v_chapter_click_count;
 }
 
 function normalizeTimelineForRange(
   timeline: JjwxcTrendPoint[],
+  aggregation: TimelineAggregation,
 ): JjwxcNormalizedTrendPoint[] {
   const baselines = Object.fromEntries(
     timelineMetrics.map(({ key }) => [
       key,
       timeline
-        .map((point) => rawValue(point, key))
+        .map((point) => rawValue(point, key, aggregation))
         .find((value) => value !== null && value !== 0) ?? null,
     ]),
   ) as Record<JjwxcTimelineMetricName, number | null>;
@@ -87,7 +96,7 @@ function normalizeTimelineForRange(
     day: point.day,
     values: Object.fromEntries(
       timelineMetrics.map(({ key }) => {
-        const value = rawValue(point, key);
+        const value = rawValue(point, key, aggregation);
         const baseline = baselines[key];
         return [
           key,
@@ -114,36 +123,19 @@ function novelMetricValue(novel: JjwxcNovel, metric: JjwxcMetricName): number | 
   return novel.synopsis_char_count;
 }
 
-function logStandardizedPearson(pairs: Array<[number, number]>): number | null {
-  if (pairs.length < 2) return null;
-  const transformed = pairs.map(([x, y]) => [Math.log1p(x), Math.log1p(y)] as const);
-  const xMean = transformed.reduce((sum, [x]) => sum + x, 0) / transformed.length;
-  const yMean = transformed.reduce((sum, [, y]) => sum + y, 0) / transformed.length;
-  const numerator = transformed.reduce(
-    (sum, [x, y]) => sum + (x - xMean) * (y - yMean),
-    0,
-  );
-  const xScale = Math.sqrt(
-    transformed.reduce((sum, [x]) => sum + (x - xMean) ** 2, 0),
-  );
-  const yScale = Math.sqrt(
-    transformed.reduce((sum, [, y]) => sum + (y - yMean) ** 2, 0),
-  );
-  if (xScale === 0 || yScale === 0) return null;
-  return Math.max(-1, Math.min(1, numerator / (xScale * yScale)));
-}
-
 function TimelineChart({
   timeline,
   normalized,
   metrics,
   indexed,
+  aggregation,
   label,
 }: {
   timeline: JjwxcTrendPoint[];
   normalized: JjwxcNormalizedTrendPoint[];
   metrics: JjwxcTimelineMetricName[];
   indexed: boolean;
+  aggregation: TimelineAggregation;
   label: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,11 +144,11 @@ function TimelineChart({
     for (const metric of metrics) {
       maxima[metric] = Math.max(
         0,
-        ...timeline.map((point) => rawValue(point, metric) ?? 0),
+        ...timeline.map((point) => rawValue(point, metric, aggregation) ?? 0),
       );
     }
-    return buildTimelineAxisSpecs(metrics, maxima);
-  }, [metrics, timeline]);
+    return buildTimelineAxisSpecs(metrics, maxima, aggregation);
+  }, [aggregation, metrics, timeline]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -220,7 +212,7 @@ function TimelineChart({
         symbolSize: 7,
         data: indexed
           ? normalized.map((item) => item.values[metric])
-          : timeline.map((item) => rawValue(item, metric)),
+          : timeline.map((item) => rawValue(item, metric, aggregation)),
       })),
     });
     const observer = new ResizeObserver(() => chart.resize());
@@ -229,7 +221,7 @@ function TimelineChart({
       observer.disconnect();
       chart.dispose();
     };
-  }, [axisSpecs, indexed, metrics, normalized, timeline]);
+  }, [aggregation, axisSpecs, indexed, metrics, normalized, timeline]);
 
   return (
     <div className="timeline-chart-block">
@@ -369,9 +361,27 @@ function CorrelationHeatmap({
   );
 }
 
+type CorrelationDisplayMode = "both" | "pearson" | "spearman";
+
+type MetricComparison = {
+  metric: JjwxcMetricName;
+  label: string;
+  stats: LogMomentCorrelationStats;
+};
+
+function formatStatistic(value: number | null, digits = 3): string {
+  return value === null
+    ? "—"
+    : new Intl.NumberFormat("zh-CN", {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits,
+      }).format(value);
+}
+
 function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [rankingMetric, setRankingMetric] = useState<JjwxcMetricName>("favorites");
+  const [displayMode, setDisplayMode] = useState<CorrelationDisplayMode>("both");
   const topNovels = useMemo(
     () =>
       [...novels]
@@ -385,7 +395,7 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
         .slice(0, 10),
     [novels, rankingMetric],
   );
-  const comparisons = useMemo(
+  const comparisons = useMemo<MetricComparison[]>(
     () =>
       allMetrics
         .filter((metric) => metric.key !== rankingMetric)
@@ -398,11 +408,12 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
           return {
             metric: metric.key,
             label: metric.label,
-            pairedCount: pairs.length,
-            coefficient: logStandardizedPearson(pairs),
+            stats: analyzeLogMomentCorrelation(pairs),
           };
         })
-        .filter((item) => item.coefficient !== null),
+        .filter(
+          (item) => item.stats.pearson !== null || item.stats.spearman !== null,
+        ),
     [rankingMetric, topNovels],
   );
 
@@ -410,37 +421,49 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
     const container = containerRef.current;
     if (!container) return;
     const chart = echarts.init(container, undefined, { renderer: "canvas" });
+    const methods = (
+      displayMode === "both" ? ["pearson", "spearman"] : [displayMode]
+    ) as Array<"pearson" | "spearman">;
     chart.setOption({
       animationDuration: 250,
-      grid: { left: 155, right: 58, top: 20, bottom: 38 },
+      color: ["#f28e5b", "#8cb8ff"],
+      grid: { left: 155, right: 58, top: 48, bottom: 38 },
+      legend: {
+        data: methods.map((method) =>
+          method === "pearson" ? "Pearson r" : "Spearman ρ",
+        ),
+        textStyle: { color: "#b9adb6" },
+      },
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       xAxis: {
         type: "value",
         min: -1,
         max: 1,
-        name: `与${labelFor(rankingMetric)}的 Pearson r`,
+        name: `与${labelFor(rankingMetric)}的相关效应量`,
         nameTextStyle: { color: "#b9adb6" },
         axisLabel: { color: "#b9adb6" },
         splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } },
       },
       yAxis: {
         type: "category",
-        data: comparisons.map((item) => `${item.label} · n=${item.pairedCount}`),
+        data: comparisons.map((item) => `${item.label} · n=${item.stats.pairedCount}`),
         axisLabel: { color: "#b9adb6" },
       },
-      series: [
-        {
-          type: "bar",
-          data: comparisons.map((item) => ({
-            value: Number(item.coefficient?.toFixed(3)),
-            itemStyle: {
-              color: (item.coefficient ?? 0) >= 0 ? "#f28e5b" : "#3a7bbf",
-              borderRadius: (item.coefficient ?? 0) >= 0 ? [0, 6, 6, 0] : [6, 0, 0, 6],
-            },
-          })),
-          label: { show: true, position: "right", color: "#f7f3f6" },
+      series: methods.map((method) => ({
+        name: method === "pearson" ? "Pearson r" : "Spearman ρ",
+        type: "bar",
+        barMaxWidth: 22,
+        itemStyle: { color: method === "pearson" ? "#f28e5b" : "#8cb8ff" },
+        data: comparisons.map((item) => {
+          const value = item.stats[method];
+          return value === null ? null : Number(value.toFixed(3));
+        }),
+        label: {
+          show: displayMode !== "both",
+          position: "right",
+          color: "#f7f3f6",
         },
-      ],
+      })),
     });
     const observer = new ResizeObserver(() => chart.resize());
     observer.observe(container);
@@ -448,16 +471,16 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
       observer.disconnect();
       chart.dispose();
     };
-  }, [comparisons, rankingMetric]);
+  }, [comparisons, displayMode, rankingMetric]);
 
   return (
     <section className="chart-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">TOP 10 COHORT · ADJUSTABLE VARIABLE</p>
+          <p className="eyebrow">TOP 10 · MOMENTS + ROBUST CORRELATION</p>
           <h2>榜单前十作品相关系数比较</h2>
         </div>
-        <span>蓝色负相关 · 橙色正相关</span>
+        <span>效应量 · 稳健性 · 估计不确定性</span>
       </div>
       <div className="metric-picker" aria-label="前十榜单排序变量">
         {allMetrics.map((metric) => (
@@ -471,6 +494,24 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
           </button>
         ))}
       </div>
+      <div className="metric-picker correlation-method-picker" aria-label="相关算法显示方式">
+        {(
+          [
+            ["both", "双方法校验"],
+            ["pearson", "Pearson 线性"],
+            ["spearman", "Spearman 秩相关"],
+          ] as Array<[CorrelationDisplayMode, string]>
+        ).map(([mode, label]) => (
+          <button
+            aria-pressed={displayMode === mode}
+            key={mode}
+            onClick={() => setDisplayMode(mode)}
+            type="button"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div
         aria-label={`按${labelFor(rankingMetric)}选出的前十作品相关系数比较图`}
         className="analysis-chart top-ten-correlation-chart"
@@ -480,10 +521,65 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
       <p className="top-ten-cohort-names">
         当前样本：{topNovels.map((novel) => novel.title).join("、") || "没有足够数据"}
       </p>
-      <p className="analysis-note">
-        先按所选变量取前十部作品，再在该样本内对各变量执行 log(1+x)、Z-score
-        标准化和成对完整 Pearson 相关；每根柱的 n 是实际共同有效样本数。
-      </p>
+      <details className="statistics-details">
+        <summary>查看一阶矩、二阶矩与估计区间</summary>
+        <div className="statistics-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>比较变量</th>
+                <th>n</th>
+                <th>一阶矩 μx / μy</th>
+                <th>二阶中心矩 σ²x / σ²y</th>
+                <th>协方差</th>
+                <th>Pearson r（95% CI）</th>
+                <th>Spearman ρ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comparisons.map((item) => (
+                <tr key={item.metric}>
+                  <th scope="row">{item.label}</th>
+                  <td>{item.stats.pairedCount}</td>
+                  <td>
+                    {formatStatistic(item.stats.xMean)} / {formatStatistic(item.stats.yMean)}
+                  </td>
+                  <td>
+                    {formatStatistic(item.stats.xSecondCentralMoment)} / {formatStatistic(item.stats.ySecondCentralMoment)}
+                  </td>
+                  <td>{formatStatistic(item.stats.covariance)}</td>
+                  <td>
+                    {formatStatistic(item.stats.pearson)}（
+                    {formatStatistic(item.stats.pearsonConfidenceLow)}，
+                    {formatStatistic(item.stats.pearsonConfidenceHigh)}）
+                  </td>
+                  <td>{formatStatistic(item.stats.spearman)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <details className="statistics-details statistics-requirements">
+        <summary>统计方法与适用要求</summary>
+        <div>
+          <p>
+            先按所选变量取前十部作品，再对共同有效样本执行 log(1+x)。Pearson
+            使用一阶矩完成中心化，以二阶中心矩和协方差刻画线性效应；Spearman
+            使用平均秩，对极端值和单调非线性关系更稳健。
+          </p>
+          <ul>
+            <li>每项 n 是实际成对完整样本数；n 少于 4 时不报告 Fisher z 置信区间。</li>
+            <li>
+              95% 区间是独立配对样本与近似二元正态条件下的 Fisher z
+              近似，用于表达估计不确定性；小样本区间通常较宽，不等于“无关系”。
+            </li>
+            <li>表中二阶中心矩按 1/n 描述当前前十样本的离散程度，不作为总体无偏方差估计。</li>
+            <li>Pearson 与 Spearman 差异较大时，应优先检查极端值、非线性和并列秩。</li>
+            <li>样本由榜单前十截取得到，存在范围限制与选择偏差，只用于探索，不推断因果。</li>
+          </ul>
+        </div>
+      </details>
     </section>
   );
 }
@@ -497,6 +593,8 @@ export function MultivariateExplorer({
     ? data.available_days
     : data.timeline.map((item) => item.day);
   const [indexed, setIndexed] = useState(false);
+  const [timelineAggregation, setTimelineAggregation] =
+    useState<TimelineAggregation>("total");
   const [timelineSelection, setTimelineSelection] = useState<
     JjwxcTimelineMetricName[]
   >(["favorites"]);
@@ -516,8 +614,8 @@ export function MultivariateExplorer({
     [data.timeline, dateFrom, dateTo],
   );
   const filteredNormalized = useMemo(
-    () => normalizeTimelineForRange(filteredTimeline),
-    [filteredTimeline],
+    () => normalizeTimelineForRange(filteredTimeline, timelineAggregation),
+    [filteredTimeline, timelineAggregation],
   );
 
   function toggleTimeline(metric: JjwxcTimelineMetricName) {
@@ -556,6 +654,22 @@ export function MultivariateExplorer({
             onClick={() => setIndexed((value) => !value)}
           >
             {indexed ? "切换为原值" : "切换为基准指数"}
+          </button>
+        </div>
+        <div className="metric-picker timeline-aggregation-picker" aria-label="时间轴统计口径">
+          <button
+            aria-pressed={timelineAggregation === "total"}
+            onClick={() => setTimelineAggregation("total")}
+            type="button"
+          >
+            总量统计
+          </button>
+          <button
+            aria-pressed={timelineAggregation === "per_work"}
+            onClick={() => setTimelineAggregation("per_work")}
+            type="button"
+          >
+            平均每部作品
           </button>
         </div>
         <div className="metric-picker" aria-label="时间轴指标，最多选择三个">
@@ -604,7 +718,8 @@ export function MultivariateExplorer({
           </label>
           <p>
             统计时间：{dateFrom || "最早"} 至 {dateTo || "最新"} · {filteredTimeline.length}
-            个快照日 · {data.cohort_items.length} 部作品
+            个快照日 · {data.cohort_items.length} 部作品 ·
+            {timelineAggregation === "total" ? "总量统计" : "每部作品均值"}
           </p>
         </div>
         <TimelineChart
@@ -612,12 +727,26 @@ export function MultivariateExplorer({
           normalized={filteredNormalized}
           metrics={timelineSelection}
           indexed={indexed}
-          label="JJWXC 多指标时间轴图"
+          aggregation={timelineAggregation}
+          label={`JJWXC 多指标时间轴图（${timelineAggregation === "total" ? "总量" : "平均每部作品"}）`}
         />
         <p className="analysis-note">
-          默认显示原值并以收藏数为左侧纵轴；增加变量后会分配独立纵轴，并按量级自动选用千、万或亿。
+          默认显示原值、总量统计并以收藏数为左侧纵轴；平均模式按每个快照日的实际作品数计算。
+          增加变量后会分配独立纵轴，并按量级自动选用千、万或亿。
           基准指数模式把区间首个有效值设为 100%，只比较变化速度。
         </p>
+        <details className="statistics-details statistics-requirements">
+          <summary>统计要求说明</summary>
+          <div>
+            <ul>
+              <li>总量统计对当日作品的书评、收藏、积分和字数求和。</li>
+              <li>平均每部作品 = 当日总量 ÷ 当日实际有快照的作品数；作品数量变化时应结合该分母解释。</li>
+              <li>V/非 V 点击先计算单部作品的章均点击，再对当天有点击值的作品取均值，不会重复除以作品数。</li>
+              <li>缺失值保持为空且不补零；基准指数仅比较变化速度，不能替代原值规模。</li>
+              <li>历史仅指本项目保存的每日快照，同一天每部作品只使用最后一条有效快照。</li>
+            </ul>
+          </div>
+        </details>
         <p className="analysis-note v-click-coverage" role="status">
           V 章点击覆盖：{vClickCoverage}/{data.cohort_items.length} 部作品。
           V 章数值只在已登录作品页提供时保存；公开点击接口缺失该字段时不会再覆盖登录页中的原值。

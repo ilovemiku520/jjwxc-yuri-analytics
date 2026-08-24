@@ -29,7 +29,7 @@ test("keeps the novel index search-first without rendering the full catalog", as
   await expect(
     page.getByRole("heading", { name: "找作品，也看见趋势" }),
   ).toBeVisible();
-  await expect(page.getByText("页面不再铺开全部已采集作品")).toBeVisible();
+  await expect(page.getByText("页面不再铺开全部已采集作品")).toHaveCount(0);
   await expect(page.getByText("她从长夜来")).toHaveCount(0);
   await page.getByLabel("搜索晋江百合作品").fill("长夜");
   await page.getByRole("button", { name: "搜索索引" }).click();
@@ -93,12 +93,19 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
   await expect(page.getByLabel("作者评分排行")).toBeVisible();
   await expect(page.getByRole("button", { name: "切换为基准指数" })).toBeVisible();
   await expect(page.getByText("左轴 · 总收藏 · 求和统计 · 万次")).toBeVisible();
+  await page.getByRole("button", { name: "平均每部作品" }).click();
+  await expect(
+    page.getByText("左轴 · 每部作品平均收藏 · 每部作品均值 · 万次/部"),
+  ).toBeVisible();
+  await page.getByText("统计要求说明").click();
+  await expect(page.getByText("缺失值保持为空且不补零", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "总量统计" }).click();
   const timelinePicker = page.getByLabel("时间轴指标，最多选择三个");
   await timelinePicker.getByRole("button", { name: "书评" }).click();
   await timelinePicker.getByRole("button", { name: "非 V 章均点击" }).click();
   await expect(page.getByText("右轴 · 总书评 · 求和统计 · 千条")).toBeVisible();
   await expect(
-    page.getByText("右轴（外侧） · 非 V 章均点击 · 跨作品均值 · 万次/章"),
+    page.getByText("右轴（外侧） · 非 V 章均点击 · 跨作品章均值 · 万次/章"),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "V 章均点击" }).first()).toBeVisible();
   await expect(page.getByText("V 章点击覆盖：1/2 部作品")).toBeVisible();
@@ -109,6 +116,13 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
   await expect(
     page.getByRole("img", { name: /前十作品相关系数比较图/u }),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "双方法校验" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByText("查看一阶矩、二阶矩与估计区间").click();
+  await expect(page.getByRole("columnheader", { name: "协方差" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Spearman ρ" })).toBeVisible();
   await expect(page.getByText("单量，多时间窗口")).toHaveCount(0);
   await expect(page.getByText("高维统计特性")).toHaveCount(0);
   await page.getByLabel("搜索作品名或作者名后加入统计").fill("长夜");

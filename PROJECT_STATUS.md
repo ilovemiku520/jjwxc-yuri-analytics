@@ -14,7 +14,7 @@ Pixiv-specific acquisition is now legacy and is not part of the active product p
 |Public-page feasibility and field review|100%|Four unauthenticated endpoints tested; terms and robots recorded|
 |JJWXC models, parser and bounded collector|99%|Ranking, work detail, chapter clicks and author-profile aggregates are implemented with bounded cache-aware collection|
 |JJWXC read API|100%|Database-backed catalog, date-bounded timeline, log-standardized correlation, custom work cohorts, search and separate work/author rating endpoints implemented|
-|Interactive JJWXC website|100%|Search-first index, custom work cohorts, raw-value timeline, date range, high-contrast matrix, adjustable top-ten correlation comparison, ratings and radar charts implemented|
+|Interactive JJWXC website|100%|Search-first index, custom cohorts, total/per-work timelines, expandable statistical requirements, robust top-ten correlation comparison, ratings and radar charts implemented|
 |Canonical PostgreSQL snapshots|97%|Migration 0014 deployed; real and synthetic sources are isolated; 59 real work snapshots and 10 real author profiles are stored|
 |Scheduled cloud collection|85%|Daily job and Railway cron configuration are ready; remote project activation and second-day verification remain|
 |Public cloud release|65%|Production containers and deployment-as-code are ready; Git remote, cloud account binding, domain and monitoring remain|
@@ -45,7 +45,11 @@ explicitly cohort-relative public-data performance, not literary quality.
 
 Cross-sectional correlation now applies `log(1+x)` to nonnegative count variables, explicitly
 Z-standardizes each pair and calculates pairwise-complete Pearson coefficients. The website exposes
-the method, sample size and a blue-to-red signed scale. The public chapter-click response currently
+the method, sample size and a blue-to-red signed scale. The top-ten comparison supplements Pearson
+with Spearman rank correlation, first and second central moments, covariance and an approximate
+Fisher-z 95% interval while documenting its small-sample and ranking-selection limits. Timeline totals
+can also be converted to per-observed-work means without double-dividing chapter-click averages.
+The public chapter-click response currently
 covers 49 novels for non-V clicks and zero for V clicks. The parser now preserves V-click values found
 inline in an authenticated page instead of overwriting them with missing public-response values; the
 UI reports the exact V-click coverage rather than implying that absent values are zero.

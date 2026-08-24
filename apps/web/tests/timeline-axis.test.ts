@@ -35,7 +35,26 @@ describe("JJWXC timeline axis planning", () => {
     });
     expect(axes[2]).toMatchObject({
       displayUnit: "万次/章",
-      statistic: "跨作品均值",
+      statistic: "跨作品章均值",
+    });
+  });
+
+  it("labels per-work averages without dividing already averaged click metrics twice", () => {
+    const axes = buildTimelineAxisSpecs(
+      ["favorites", "reviews", "clicks"],
+      { favorites: 32_000, reviews: 1_260, clicks: 18_200 },
+      "per_work",
+    );
+
+    expect(axes[0]).toMatchObject({
+      label: "每部作品平均收藏",
+      statistic: "每部作品均值",
+      displayUnit: "万次/部",
+    });
+    expect(axes[2]).toMatchObject({
+      label: "非 V 章均点击",
+      statistic: "跨作品章均值",
+      displayUnit: "万次/章",
     });
   });
 });
