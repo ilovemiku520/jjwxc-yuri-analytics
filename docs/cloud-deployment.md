@@ -33,9 +33,11 @@
 1. PostgreSQL：使用 Railway PostgreSQL 模板，保持私网。
 2. `api`：配置路径 `/deploy/railway/api.railway.json`；设置
    `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}`、`PYURI_API_HOST=0.0.0.0`、
-   `PYURI_API_DEPLOYMENT_SCOPE=private_container`、`PYURI_SHARED_CONSUMER_CONTROLS_ENABLED=true`。
+   `PYURI_API_DEPLOYMENT_SCOPE=private_container`、`PYURI_SHARED_CONSUMER_CONTROLS_ENABLED=true`，并生成
+   高熵随机值 `PYURI_COHORT_IMPORT_TOKEN`（不得提交仓库）。
 3. `web`：配置路径 `/deploy/railway/web.railway.json`；设置
-   `PYURI_INTERNAL_API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}`，只为该服务生成公网域名。
+   `PYURI_INTERNAL_API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}`，并设置与 api 完全相同的
+   `PYURI_COHORT_IMPORT_TOKEN`；只为该服务生成公网域名。
 4. `daily`：配置路径 `/deploy/railway/daily.railway.json`；设置
    `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}` 和 `JJYURI_ENABLE_NETWORK=true`，不生成公网域名；挂载
    Volume 到 `/data/cache`。可用 `--index-pages` 与 `JJYURI_HYDRATE_LIMIT` 控制摘要扫描和详细补全量；

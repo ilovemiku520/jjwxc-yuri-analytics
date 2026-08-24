@@ -14,15 +14,16 @@ Pixiv-specific acquisition is now legacy and is not part of the active product p
 |Public-page feasibility and field review|100%|Four unauthenticated endpoints tested; terms and robots recorded|
 |JJWXC models, parser and bounded collector|99%|Ranking, work detail, chapter clicks and author-profile aggregates are implemented with bounded cache-aware collection|
 |JJWXC read API|100%|Database-backed catalog, date-bounded timeline, log-standardized correlation, custom work cohorts, search and separate work/author rating endpoints implemented|
-|Interactive JJWXC website|100%|Search-first index, custom cohorts, total/per-work timelines, expandable statistical requirements, robust top-ten correlation comparison, ratings and radar charts implemented|
+|Interactive JJWXC website|100%|Search-first index, CSV/TSV/TXT cohort import with failure reports, total/per-work timelines, n>=30 adjustable Pearson/Spearman comparison, ratings and radar charts implemented|
 |Canonical PostgreSQL snapshots|97%|Migration 0014 deployed; real and synthetic sources are isolated; 59 real work snapshots and 10 real author profiles are stored|
 |Scheduled cloud collection|85%|Daily job and Railway cron configuration are ready; remote project activation and second-day verification remain|
 |Public cloud release|65%|Production containers and deployment-as-code are ready; Git remote, cloud account binding, domain and monitoring remain|
 |New JJWXC roadmap overall|Approximately 92%|Requested local analytics product is complete; durable remote publication, deeper backfill and authenticated V-click coverage remain|
 
 Current JJWXC API evidence is exported separately at `contracts/openapi-jjwxc-v1.json` and
-`var/reports/jjwxc_openapi_contract.json`: 36 GET-only paths, no mutation route and no prohibited
-response field.
+`var/reports/jjwxc_openapi_contract.json`: the historical review covered 36 GET-only paths and no
+prohibited response field. The new private cohort-import mutation only validates and queues bounded
+novel IDs; it does not return source payloads or credentials.
 The earlier 25-path Phase 2/5 reports remain immutable historical evidence rather than being
 silently overwritten after the source pivot.
 
@@ -45,9 +46,11 @@ explicitly cohort-relative public-data performance, not literary quality.
 
 Cross-sectional correlation now applies `log(1+x)` to nonnegative count variables, explicitly
 Z-standardizes each pair and calculates pairwise-complete Pearson coefficients. The website exposes
-the method, sample size and a blue-to-red signed scale. The top-ten comparison supplements Pearson
-with Spearman rank correlation, first and second central moments, covariance and an approximate
-Fisher-z 95% interval while documenting its small-sample and ranking-selection limits. Timeline totals
+the method, sample size and a blue-to-red signed scale; V-chapter clicks are excluded from this matrix
+because current public coverage is absent. The adjustable comparison only displays coefficients with
+at least 30 pairwise-complete observations and supplements Pearson with Spearman rank correlation,
+first and second central moments, covariance and an approximate Fisher-z 95% interval while stating
+that this floor is not a significance guarantee. Timeline totals
 can also be converted to per-observed-work means without double-dividing chapter-click averages.
 The public chapter-click response currently
 covers 49 novels for non-V clicks and zero for V clicks. The parser now preserves V-click values found
@@ -91,7 +94,7 @@ bounded real public-metadata sample and does not inherit Pixiv acquisition autho
 - PostgreSQL ingest-ledger SQLAlchemy models and Alembic migration;
 - transactional/idempotent fixture ingestion and quarantine behavior;
 - fixture-only Schema Policy, exact Parser routing and validation reports;
-- 426 automated tests, Ruff, strict mypy across 142 source/test modules and offline migration SQL generation;
+- 609 automated tests, Ruff, strict mypy across 122 source modules and offline migration SQL generation;
 - Docker Compose definitions for internal-only PostgreSQL migration and fixture ingest;
 - successful real PostgreSQL migration and Fixture ingest integration;
 - minimal FastAPI liveness/readiness contract and loopback-only Compose service;

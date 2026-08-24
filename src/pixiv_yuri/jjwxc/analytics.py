@@ -45,6 +45,10 @@ NOVEL_METRICS = (
     MetricDefinition("synopsis_chars", "文案字符数", "synopsis_char_count"),
 )
 
+CORRELATION_METRICS = tuple(
+    definition for definition in NOVEL_METRICS if definition.name != "v_clicks"
+)
+
 _TIMELINE_ATTRIBUTES: dict[TimelineMetricName, str] = {
     "reviews": "total_review_count",
     "favorites": "total_favorite_count",
@@ -105,8 +109,8 @@ def metric_summary(
 def correlation_matrix(novels: tuple[JjwxcNovel, ...]) -> tuple[dict[str, object], ...]:
     """Return pairwise-complete Pearson r after log1p and z-score normalization."""
     cells: list[dict[str, object]] = []
-    for y_definition in NOVEL_METRICS:
-        for x_definition in NOVEL_METRICS:
+    for y_definition in CORRELATION_METRICS:
+        for x_definition in CORRELATION_METRICS:
             pairs = [
                 (float(x_value), float(y_value))
                 for novel in novels
@@ -192,8 +196,5 @@ def _log_standardized_pearson(pairs: list[tuple[float, float]]) -> float | None:
     y_scale = pstdev(y_values)
     if x_scale == 0 or y_scale == 0:
         return None
-    standardized = [
-        ((x - x_mean) / x_scale, (y - y_mean) / y_scale)
-        for x, y in transformed
-    ]
+    standardized = [((x - x_mean) / x_scale, (y - y_mean) / y_scale) for x, y in transformed]
     return _pearson(standardized)

@@ -12,6 +12,7 @@ import urllib.error
 from datetime import UTC, datetime, timedelta
 from datetime import time as datetime_time
 from pathlib import Path
+from typing import TypedDict
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
@@ -48,16 +49,26 @@ CHANNEL_URL = "https://www.jjwxc.net/channel/bh.php"
 _BOOKBASE_URL = "https://www.jjwxc.net/bookbase.php"
 _NOVEL_URL = "https://www.jjwxc.net/onebook.php?novelid={novel_id}"
 _CLICK_URL = (
-    "https://s8-static.jjwxc.net/getnovelclick.php?novelid={novel_id}"
-    "&jsonpcallback=novelclick"
+    "https://s8-static.jjwxc.net/getnovelclick.php?novelid={novel_id}&jsonpcallback=novelclick"
 )
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _PRIORITIES = {
+    "uploaded_cohort": 120,
     "channel_gold": 100,
     "newcomer": 90,
     "channel_catalog": 50,
     "bookbase_catalog": 20,
 }
+
+
+class HydrationResult(TypedDict):
+    requested_count: int
+    hydrated_novel_snapshots: int
+    created_chapter_rows: int
+    failed_novels: int
+    cache_hits: int
+    network_request_count: int
+    items: list[dict[str, str | None]]
 
 
 def collect_channel_catalog(
@@ -127,92 +138,19 @@ def collect_channel_catalog(
     network_requests += bookbase_network_requests
     cache_hits += bookbase_cache_hits
 
-    hydrated = 0
-    failed = 0
-    chapters_created = 0
-    candidates = list(
-        session.scalars(
-            select(JjwxcDiscoveryRecord)
-            .where(JjwxcDiscoveryRecord.next_fetch_at <= observed_at)
-            .order_by(JjwxcDiscoveryRecord.priority.desc(), JjwxcDiscoveryRecord.id)
-            .limit(hydrate_limit)
-        ).all()
+    hydration = _hydrate_discovery_queue(
+        session,
+        cache=cache,
+        limit=hydrate_limit,
+        request_interval_seconds=request_interval_seconds,
+        observed_at=observed_at,
+        canonical_observed_at=canonical_observed_at,
     )
-    for record in candidates:
-        record.status = "running"
-        record.attempt_count += 1
-        session.commit()
-        novel_url = _NOVEL_URL.format(novel_id=record.novel_id)
-        try:
-            time.sleep(request_interval_seconds)
-            page_fetch = cache.fetch(
-                novel_url,
-                allowed_hosts=frozenset({"www.jjwxc.net"}),
-                expected_content_types=("text/html",),
-                max_bytes=1_500_000,
-            )
-            network_requests += int(not page_fetch.cache_hit)
-            cache_hits += int(page_fetch.cache_hit)
-            click_payload: bytes | None = None
-            try:
-                time.sleep(request_interval_seconds)
-                click_fetch = cache.fetch(
-                    _CLICK_URL.format(novel_id=record.novel_id),
-                    allowed_hosts=frozenset({"s8-static.jjwxc.net"}),
-                    expected_content_types=(
-                        "application/javascript",
-                        "text/javascript",
-                        "text/plain",
-                        "text/html",
-                    ),
-                    max_bytes=500_000,
-                    referer=novel_url,
-                )
-                click_payload = click_fetch.payload
-                network_requests += int(not click_fetch.cache_hit)
-                cache_hits += int(click_fetch.cache_hit)
-            except (RuntimeError, ValueError, urllib.error.URLError, TimeoutError):
-                click_payload = None
-            chapters = parse_chapter_directory(
-                page_fetch.payload,
-                click_payload=click_payload,
-            )
-            candidate = parse_novel_page(
-                page_fetch.payload,
-                novel_id=record.novel_id,
-                observed_at=canonical_observed_at,
-            )
-            candidate = enrich_candidate_with_chapters(candidate, chapters)
-            write = store_novel_snapshot(session, candidate)
-            if write.snapshot_created:
-                for chapter in chapters:
-                    session.add(
-                        JjwxcChapterSnapshot(
-                            novel_record_id=write.novel_record_id,
-                            observed_at=canonical_observed_at,
-                            chapter_id=chapter.chapter_id,
-                            position=chapter.position,
-                            is_vip=chapter.is_vip,
-                            word_count=chapter.word_count,
-                            click_count=chapter.click_count,
-                        )
-                    )
-                chapters_created += len(chapters)
-            record.status = "completed"
-            record.last_fetched_at = observed_at
-            record.next_fetch_at = observed_at + timedelta(days=1)
-            record.last_error_code = None
-            hydrated += int(write.snapshot_created)
-            session.commit()
-        except (RuntimeError, ValueError, urllib.error.URLError, TimeoutError) as exc:
-            session.rollback()
-            failed += 1
-            retry = session.get(JjwxcDiscoveryRecord, record.id)
-            if retry is not None:
-                retry.status = "failed"
-                retry.next_fetch_at = observed_at + timedelta(hours=6)
-                retry.last_error_code = _error_code(exc)
-                session.commit()
+    hydrated = hydration["hydrated_novel_snapshots"]
+    failed = hydration["failed_novels"]
+    chapters_created = hydration["created_chapter_rows"]
+    network_requests += hydration["network_request_count"]
+    cache_hits += hydration["cache_hits"]
 
     pending = session.scalar(
         select(JjwxcDiscoveryRecord.id)
@@ -255,6 +193,166 @@ def collect_channel_catalog(
         "network_request_count": network_requests,
         "backfill_remaining": pending is not None,
         "raw_payload_location": "private_ttl_cache",
+    }
+
+
+def collect_targeted_cohort_queue(
+    session: Session,
+    *,
+    limit: int,
+    request_interval_seconds: float,
+    cache_dir: Path,
+    cache_ttl_seconds: int = 24 * 60 * 60,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    """Hydrate only high-priority IDs supplied through the cohort import interface."""
+    if os.getenv("JJYURI_ENABLE_NETWORK", "false").lower() != "true":
+        raise RuntimeError("network_disabled")
+    if not 1 <= limit <= 100:
+        raise ValueError("targeted_limit_out_of_range")
+    if request_interval_seconds < 1.0:
+        raise ValueError("request_interval_too_short")
+    observed_at = now or datetime.now(UTC)
+    if observed_at.tzinfo is None:
+        raise ValueError("observation_time_must_be_aware")
+    local_day = observed_at.astimezone(_SHANGHAI).date()
+    canonical_observed_at = datetime.combine(
+        local_day, datetime_time(hour=3, minute=30), tzinfo=_SHANGHAI
+    ).astimezone(UTC)
+    cache = JjwxcSourceCache(cache_dir, ttl_seconds=cache_ttl_seconds)
+    hydration = _hydrate_discovery_queue(
+        session,
+        cache=cache,
+        limit=limit,
+        request_interval_seconds=request_interval_seconds,
+        observed_at=observed_at,
+        canonical_observed_at=canonical_observed_at,
+        source_kind="uploaded_cohort",
+    )
+    return {
+        "status": "completed_with_errors" if hydration["failed_novels"] else "completed",
+        "observation_day": local_day.isoformat(),
+        **hydration,
+        "raw_payload_location": "private_ttl_cache",
+    }
+
+
+def _hydrate_discovery_queue(
+    session: Session,
+    *,
+    cache: JjwxcSourceCache,
+    limit: int,
+    request_interval_seconds: float,
+    observed_at: datetime,
+    canonical_observed_at: datetime,
+    source_kind: str | None = None,
+) -> HydrationResult:
+    statement = select(JjwxcDiscoveryRecord).where(
+        JjwxcDiscoveryRecord.next_fetch_at <= observed_at,
+        JjwxcDiscoveryRecord.status != "running",
+    )
+    if source_kind is not None:
+        statement = statement.where(JjwxcDiscoveryRecord.source_kind == source_kind)
+    candidates = list(
+        session.scalars(
+            statement.order_by(JjwxcDiscoveryRecord.priority.desc(), JjwxcDiscoveryRecord.id).limit(
+                limit
+            )
+        ).all()
+    )
+    hydrated = 0
+    failed = 0
+    chapters_created = 0
+    network_requests = 0
+    cache_hits = 0
+    results: list[dict[str, str | None]] = []
+    for record in candidates:
+        record.status = "running"
+        record.attempt_count += 1
+        session.commit()
+        novel_url = _NOVEL_URL.format(novel_id=record.novel_id)
+        try:
+            time.sleep(request_interval_seconds)
+            page_fetch = cache.fetch(
+                novel_url,
+                allowed_hosts=frozenset({"www.jjwxc.net"}),
+                expected_content_types=("text/html",),
+                max_bytes=1_500_000,
+            )
+            network_requests += int(not page_fetch.cache_hit)
+            cache_hits += int(page_fetch.cache_hit)
+            click_payload: bytes | None = None
+            try:
+                time.sleep(request_interval_seconds)
+                click_fetch = cache.fetch(
+                    _CLICK_URL.format(novel_id=record.novel_id),
+                    allowed_hosts=frozenset({"s8-static.jjwxc.net"}),
+                    expected_content_types=(
+                        "application/javascript",
+                        "text/javascript",
+                        "text/plain",
+                        "text/html",
+                    ),
+                    max_bytes=500_000,
+                    referer=novel_url,
+                )
+                click_payload = click_fetch.payload
+                network_requests += int(not click_fetch.cache_hit)
+                cache_hits += int(click_fetch.cache_hit)
+            except (RuntimeError, ValueError, urllib.error.URLError, TimeoutError):
+                click_payload = None
+            chapters = parse_chapter_directory(page_fetch.payload, click_payload=click_payload)
+            candidate = parse_novel_page(
+                page_fetch.payload,
+                novel_id=record.novel_id,
+                observed_at=canonical_observed_at,
+            )
+            if record.source_kind == "uploaded_cohort" and "百合" not in candidate.novel_type:
+                raise ValueError("novel_outside_yuri_scope")
+            candidate = enrich_candidate_with_chapters(candidate, chapters)
+            write = store_novel_snapshot(session, candidate)
+            if write.snapshot_created:
+                for chapter in chapters:
+                    session.add(
+                        JjwxcChapterSnapshot(
+                            novel_record_id=write.novel_record_id,
+                            observed_at=canonical_observed_at,
+                            chapter_id=chapter.chapter_id,
+                            position=chapter.position,
+                            is_vip=chapter.is_vip,
+                            word_count=chapter.word_count,
+                            click_count=chapter.click_count,
+                        )
+                    )
+                chapters_created += len(chapters)
+            record.status = "completed"
+            record.last_fetched_at = observed_at
+            record.next_fetch_at = observed_at + timedelta(days=1)
+            record.last_error_code = None
+            hydrated += int(write.snapshot_created)
+            results.append({"novel_id": record.novel_id, "status": "ready", "error_code": None})
+            session.commit()
+        except (RuntimeError, ValueError, urllib.error.URLError, TimeoutError) as exc:
+            session.rollback()
+            failed += 1
+            error_code = _error_code(exc)
+            retry = session.get(JjwxcDiscoveryRecord, record.id)
+            if retry is not None:
+                retry.status = "failed"
+                retry.next_fetch_at = observed_at + timedelta(hours=6)
+                retry.last_error_code = error_code
+                session.commit()
+            results.append(
+                {"novel_id": record.novel_id, "status": "failed", "error_code": error_code}
+            )
+    return {
+        "requested_count": len(candidates),
+        "hydrated_novel_snapshots": hydrated,
+        "created_chapter_rows": chapters_created,
+        "failed_novels": failed,
+        "cache_hits": cache_hits,
+        "network_request_count": network_requests,
+        "items": results,
     }
 
 
@@ -323,9 +421,7 @@ def _collect_author_profiles(
                 select(JjwxcAuthorSnapshot.id).where(
                     or_(
                         JjwxcAuthorSnapshot.candidate_sha256 == digest,
-                        (
-                            JjwxcAuthorSnapshot.author_record_id == author.id
-                        )
+                        (JjwxcAuthorSnapshot.author_record_id == author.id)
                         & (JjwxcAuthorSnapshot.observed_at == observed_at),
                     )
                 )
@@ -463,9 +559,7 @@ def _upsert_bookbase_page(
     existing_index = {
         item.novel_id: item
         for item in session.scalars(
-            select(JjwxcCatalogIndexRecord).where(
-                JjwxcCatalogIndexRecord.novel_id.in_(novel_ids)
-            )
+            select(JjwxcCatalogIndexRecord).where(JjwxcCatalogIndexRecord.novel_id.in_(novel_ids))
         ).all()
     }
     existing_queue = {
@@ -598,8 +692,7 @@ def _upsert_discovery_queue(
 def _error_code(error: Exception) -> str:
     value = str(error).strip().lower()
     cleaned = "".join(
-        character if character.isalnum() or character == "_" else "_"
-        for character in value
+        character if character.isalnum() or character == "_" else "_" for character in value
     )
     return (cleaned.strip("_") or error.__class__.__name__.lower())[:80]
 

@@ -8,6 +8,7 @@ services:
     profiles: ["web"]
     environment:
       PYURI_INTERNAL_API_URL: http://api:8000
+      PYURI_COHORT_IMPORT_TOKEN: ${PYURI_COHORT_IMPORT_TOKEN:-change-me-local-only}
       PYURI_PHASE6_REPORT_DIR: /run/pyuri-reports
     ports:
       - "127.0.0.1:${PYURI_WEB_PORT:-3000}:3000"
@@ -54,6 +55,7 @@ services:
       PYURI_API_RATE_LIMIT_WINDOW_SECONDS: "60"
       PYURI_API_RATE_LIMIT_MAX_CONSUMERS: "100000"
       PYURI_API_AUDIT_RETENTION_DAYS: "30"
+      PYURI_COHORT_IMPORT_TOKEN: ${PYURI_COHORT_IMPORT_TOKEN:-change-me-local-only}
       PYURI_DATABASE_URL: >-
         postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
     ports:
@@ -162,7 +164,7 @@ services:
 
   postgres:
     image: ${PYURI_POSTGRES_IMAGE:-postgres:17}
-    profiles: ["database"]
+    profiles: ["database", "live-jjwxc"]
     environment:
       POSTGRES_USER: ${PYURI_POSTGRES_USER:-pyuri}
       POSTGRES_PASSWORD: ${PYURI_POSTGRES_PASSWORD:-change-me-local-only}
@@ -183,7 +185,7 @@ services:
       dockerfile: apps/api/Dockerfile
       args:
         PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
-    profiles: ["database"]
+    profiles: ["database", "live-jjwxc"]
     entrypoint: ["pyuri-db"]
     command: ["migrate", "--alembic-config", "/app/alembic.ini"]
     environment:
@@ -237,6 +239,34 @@ services:
       - ${JJYURI_HYDRATE_LIMIT:-25}
       - --author-limit
       - ${JJYURI_AUTHOR_LIMIT:-5}
+      - --request-interval-seconds
+      - ${JJYURI_REQUEST_INTERVAL_SECONDS:-2}
+      - --cache-dir
+      - /cache
+    environment:
+      JJYURI_ENABLE_NETWORK: "true"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    volumes:
+      - ./var/cache/jjwxc:/cache
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    networks:
+      - offline-db
+      - source-egress
+
+  jjwxc-targeted:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["live-jjwxc"]
+    entrypoint: ["jjyuri-jjwxc-targeted"]
+    command:
+      - --limit
+      - ${JJYURI_TARGETED_LIMIT:-30}
       - --request-interval-seconds
       - ${JJYURI_REQUEST_INTERVAL_SECONDS:-2}
       - --cache-dir

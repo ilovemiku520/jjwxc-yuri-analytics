@@ -17,7 +17,8 @@ function start(args, env = process.env) {
 
 async function waitFor(url, child, label) {
   for (let attempt = 0; attempt < 120; attempt += 1) {
-    if (child.exitCode !== null) throw new Error(`${label} exited before becoming ready`);
+    if (child.exitCode !== null)
+      throw new Error(`${label} exited before becoming ready`);
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(500) });
       if (response.ok) return;
@@ -58,8 +59,19 @@ try {
   const mock = start(["tests/e2e/mock-api.mjs"]);
   await waitFor("http://127.0.0.1:8000/health/live", mock, "mock API");
   const web = start(
-    ["node_modules/next/dist/bin/next", "start", "-H", "127.0.0.1", "-p", "3200"],
-    { ...process.env, PYURI_INTERNAL_API_URL: "http://127.0.0.1:8000" },
+    [
+      "node_modules/next/dist/bin/next",
+      "start",
+      "-H",
+      "127.0.0.1",
+      "-p",
+      "3200",
+    ],
+    {
+      ...process.env,
+      PYURI_INTERNAL_API_URL: "http://127.0.0.1:8000",
+      PYURI_COHORT_IMPORT_TOKEN: "e2e-internal-token",
+    },
   );
   await waitFor("http://127.0.0.1:3200", web, "Next.js server");
   exitCode = await runPlaywright();

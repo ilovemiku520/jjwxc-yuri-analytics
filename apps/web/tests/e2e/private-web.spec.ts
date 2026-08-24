@@ -82,6 +82,11 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
     page.getByRole("img", { name: "作品指标 Pearson 相关矩阵热力图" }),
   ).toBeVisible();
   await expect(
+    page
+      .getByLabel("矩阵指标，至少选择两个")
+      .getByRole("button", { name: "V 章均点击", exact: true }),
+  ).toHaveCount(0);
+  await expect(
     page.getByRole("heading", { name: "作品与作者公开数据表现评级" }),
   ).toBeVisible();
   await expect(page.getByLabel("作品评分排行")).toBeVisible();
@@ -91,14 +96,18 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
   await expect(page.getByText("29.0%", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "作者", exact: true }).click();
   await expect(page.getByLabel("作者评分排行")).toBeVisible();
-  await expect(page.getByRole("button", { name: "切换为基准指数" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "切换为基准指数" }),
+  ).toBeVisible();
   await expect(page.getByText("左轴 · 总收藏 · 求和统计 · 万次")).toBeVisible();
   await page.getByRole("button", { name: "平均每部作品" }).click();
   await expect(
     page.getByText("左轴 · 每部作品平均收藏 · 每部作品均值 · 万次/部"),
   ).toBeVisible();
   await page.getByText("统计要求说明").click();
-  await expect(page.getByText("缺失值保持为空且不补零", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("缺失值保持为空且不补零", { exact: false }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "总量统计" }).click();
   const timelinePicker = page.getByLabel("时间轴指标，最多选择三个");
   await timelinePicker.getByRole("button", { name: "书评" }).click();
@@ -107,22 +116,32 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
   await expect(
     page.getByText("右轴（外侧） · 非 V 章均点击 · 跨作品章均值 · 万次/章"),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "V 章均点击" }).first()).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "V 章均点击" }).first(),
+  ).toBeVisible();
   await expect(page.getByText("V 章点击覆盖：1/2 部作品")).toBeVisible();
   await expect(page.getByLabel("统计时间范围")).toBeVisible();
   await page.getByLabel("开始日期").fill("2026-08-23");
   await expect(page.getByText(/1个快照日/u)).toBeVisible();
   await page.getByLabel("开始日期").fill("2026-08-22");
   await expect(
-    page.getByRole("img", { name: /前十作品相关系数比较图/u }),
+    page.getByRole("img", { name: /可调样本作品相关系数比较图/u }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "双方法校验" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(page.getByLabel("分析样本量")).toBeDisabled();
+  await expect(page.getByLabel("样本量精确值")).toBeDisabled();
+  await expect(
+    page.getByText(/当前没有变量对达到 30 个共同有效样本/u),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "双方法校验" }),
+  ).toHaveAttribute("aria-pressed", "true");
   await page.getByText("查看一阶矩、二阶矩与估计区间").click();
-  await expect(page.getByRole("columnheader", { name: "协方差" })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "Spearman ρ" })).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "协方差" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "Spearman ρ" }),
+  ).toBeVisible();
   await expect(page.getByText("单量，多时间窗口")).toHaveCount(0);
   await expect(page.getByText("高维统计特性")).toHaveCount(0);
   await page.getByLabel("搜索作品名或作者名后加入统计").fill("长夜");
@@ -131,6 +150,37 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
   await expect(page).toHaveURL(/novels=90000002/u);
   await expect(page.getByLabel("已选择作品")).toContainText("她从长夜来");
   await expect(page.getByText("V 章点击覆盖：0/1 部作品")).toBeVisible();
+});
+
+test("imports a local cohort table and excludes invalid or failed rows", async ({
+  page,
+}) => {
+  await page.goto("/analytics");
+  await page.getByLabel("导入作品 ID 表").setInputFiles({
+    name: "cohort.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "novel_id,title\n90000001,可用\n90000001,重复\n1.2E8,错误类型\n99999999,采集失败\n",
+    ),
+  });
+  await expect(page.getByText(/合法唯一 ID 2 个/u)).toBeVisible();
+  await expect(page.getByText(/本机排除 2 行/u)).toBeVisible();
+  await page.getByRole("button", { name: "校验并排队采集" }).click();
+  await expect(
+    page.getByText(/已采集 1.*排队 0.*采集中 0.*采集失败\/未排队 1/u),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "必须是 1–12 位正整数字符串" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("cell", { name: "collection_failed" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "用 1 部成功作品进行比较" }),
+  ).toHaveAttribute("href", "/analytics?novels=90000001");
+  await expect(
+    page.getByRole("button", { name: "下载排除/失败清单（3）" }),
+  ).toBeEnabled();
 });
 
 test("shows one-request candidate status without mutation controls", async ({

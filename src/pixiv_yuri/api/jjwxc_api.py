@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hmac
+import os
 from collections import defaultdict
 from datetime import date
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -18,6 +20,12 @@ from pixiv_yuri.jjwxc.analytics import (
     correlation_matrix,
     metric_summary,
     normalized_timeline,
+)
+from pixiv_yuri.jjwxc.cohort_import import (
+    MAX_COHORT_NOVEL_IDS,
+    MIN_CORRELATION_SAMPLE_SIZE,
+    cohort_collection_status,
+    queue_cohort_novels,
 )
 from pixiv_yuri.jjwxc.database_catalog import (
     DataMode,
@@ -99,9 +107,7 @@ class JjwxcFullCatalogSearchResponse(BaseModel):
 
     data_mode: DataMode
     query: str
-    coverage: Literal["progressive_official_bookbase_index"] = (
-        "progressive_official_bookbase_index"
-    )
+    coverage: Literal["progressive_official_bookbase_index"] = "progressive_official_bookbase_index"
     match_fields: tuple[Literal["title", "author_display_name"], ...] = (
         "title",
         "author_display_name",
@@ -215,9 +221,7 @@ class JjwxcMultivariateResponse(BaseModel):
     click_definition: Literal["average_non_v_chapter_click_count"] = (
         "average_non_v_chapter_click_count"
     )
-    v_click_definition: Literal["average_v_chapter_click_count"] = (
-        "average_v_chapter_click_count"
-    )
+    v_click_definition: Literal["average_v_chapter_click_count"] = "average_v_chapter_click_count"
     correlation_method: Literal["pearson_log1p_zscore_pairwise_complete"] = (
         "pearson_log1p_zscore_pairwise_complete"
     )
@@ -228,6 +232,30 @@ class JjwxcMultivariateResponse(BaseModel):
     normalized_timeline: tuple[JjwxcNormalizedTrendPoint, ...]
     summaries: tuple[JjwxcMetricSummary, ...]
     correlation_matrix: tuple[JjwxcCorrelationCell, ...]
+
+
+class JjwxcCohortImportRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mode: Literal["queue", "status"] = "queue"
+    novel_ids: tuple[str, ...] = Field(min_length=1, max_length=MAX_COHORT_NOVEL_IDS)
+
+
+class JjwxcCohortImportItem(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    novel_id: str
+    status: Literal["ready", "queued", "running", "failed", "not_queued"]
+    error_code: str | None = None
+
+
+class JjwxcCohortImportResponse(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    accepted_count: int = Field(ge=0, le=MAX_COHORT_NOVEL_IDS)
+    ready_count: int = Field(ge=0, le=MAX_COHORT_NOVEL_IDS)
+    minimum_analysis_sample: int = MIN_CORRELATION_SAMPLE_SIZE
+    items: tuple[JjwxcCohortImportItem, ...]
 
 
 class JjwxcRatingItem(BaseModel):
@@ -436,8 +464,7 @@ def register_jjwxc_routes(
                         )
                         .outerjoin(
                             JjwxcNovelRecord,
-                            JjwxcNovelRecord.novel_id
-                            == JjwxcChannelRankingSnapshot.novel_id,
+                            JjwxcNovelRecord.novel_id == JjwxcChannelRankingSnapshot.novel_id,
                         )
                         .outerjoin(
                             JjwxcAuthorRecord,
@@ -495,9 +522,7 @@ def register_jjwxc_routes(
         author = summaries.get(author_id)
         if author is None:
             raise HTTPException(status_code=404, detail="jjwxc_author_not_found")
-        novels_by_author = tuple(
-            item for item in catalog.novels if item.author_id == author_id
-        )
+        novels_by_author = tuple(item for item in catalog.novels if item.author_id == author_id)
         return JjwxcAuthorDetail(author=author, novels=novels_by_author)
 
     @application.get("/api/v1/jjwxc/trends", response_model=JjwxcTrendResponse)
@@ -512,8 +537,8 @@ def register_jjwxc_routes(
     def multivariate_analytics(
         novel_ids: str | None = Query(
             default=None,
-            max_length=259,
-            pattern=r"^[1-9][0-9]{0,11}(,[1-9][0-9]{0,11}){0,19}$",
+            max_length=1299,
+            pattern=r"^[1-9][0-9]{0,11}(,[1-9][0-9]{0,11}){0,99}$",
         ),
     ) -> JjwxcMultivariateResponse:
         selected_novel_ids = tuple(dict.fromkeys(novel_ids.split(","))) if novel_ids else ()
@@ -552,6 +577,47 @@ def register_jjwxc_routes(
                 JjwxcCorrelationCell.model_validate(item)
                 for item in correlation_matrix(catalog.novels)
             ),
+        )
+
+    @application.post(
+        "/api/v1/jjwxc/analytics/cohorts/import",
+        response_model=JjwxcCohortImportResponse,
+        include_in_schema=False,
+    )
+    def import_analytics_cohort(
+        request: JjwxcCohortImportRequest,
+        x_pyuri_internal_operation: str | None = Header(default=None),
+    ) -> JjwxcCohortImportResponse:
+        expected_token = os.getenv("PYURI_COHORT_IMPORT_TOKEN")
+        if not expected_token:
+            raise HTTPException(status_code=503, detail="jjwxc_cohort_import_disabled")
+        if x_pyuri_internal_operation is None or not hmac.compare_digest(
+            x_pyuri_internal_operation, expected_token
+        ):
+            raise HTTPException(status_code=403, detail="jjwxc_cohort_import_forbidden")
+        if session_factory is None:
+            raise HTTPException(status_code=503, detail="jjwxc_database_required")
+        try:
+            with session_factory() as session:
+                items = (
+                    queue_cohort_novels(session, novel_ids=request.novel_ids)
+                    if request.mode == "queue"
+                    else cohort_collection_status(session, novel_ids=request.novel_ids)
+                )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        response_items = tuple(
+            JjwxcCohortImportItem(
+                novel_id=item.novel_id,
+                status=item.status,
+                error_code=item.error_code,
+            )
+            for item in items
+        )
+        return JjwxcCohortImportResponse(
+            accepted_count=len(response_items),
+            ready_count=sum(item.status == "ready" for item in response_items),
+            items=response_items,
         )
 
     @application.get(

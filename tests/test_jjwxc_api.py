@@ -42,9 +42,7 @@ def test_indexed_search_matches_title_or_author_and_channel_lists_are_explicit()
     with TestClient(create_app(lambda: None)) as client:
         title = client.get("/api/v1/jjwxc/search", params={"query": "向晚"})
         author = client.get("/api/v1/jjwxc/search", params={"query": "南汀"})
-        full_catalog = client.get(
-            "/api/v1/jjwxc/catalog-search", params={"query": "向晚"}
-        )
+        full_catalog = client.get("/api/v1/jjwxc/catalog-search", params={"query": "向晚"})
         channel = client.get(
             "/api/v1/jjwxc/channel-rankings", params={"ranking_key": "channel_gold"}
         )
@@ -107,7 +105,11 @@ def test_multivariate_analytics_preserves_missingness_and_matrix_shape() -> None
     assert len(payload["timeline"]) == 8
     assert len(payload["normalized_timeline"]) == 8
     assert payload["normalized_timeline"][0]["values"]["reviews"] == 10_000
-    assert len(payload["correlation_matrix"]) == 49
+    assert len(payload["correlation_matrix"]) == 36
+    assert all(
+        cell["x_metric"] != "v_clicks" and cell["y_metric"] != "v_clicks"
+        for cell in payload["correlation_matrix"]
+    )
     click_summary = next(item for item in payload["summaries"] if item["metric"] == "clicks")
     assert click_summary["observed_count"] == 6
     assert click_summary["missing_count"] == 2

@@ -143,7 +143,8 @@ const jjwxcSummaries = jjwxcMetrics.map((metric) => ({
   }[metric],
   observed_count: metric === "clicks" || metric === "v_clicks" ? 1 : 2,
   missing_count: metric === "clicks" || metric === "v_clicks" ? 1 : 0,
-  coverage_basis_points: metric === "clicks" || metric === "v_clicks" ? 5000 : 10000,
+  coverage_basis_points:
+    metric === "clicks" || metric === "v_clicks" ? 5000 : 10000,
   minimum: 100,
   maximum: 200,
   mean: 150,
@@ -158,11 +159,13 @@ const jjwxcCorrelationMatrix = jjwxcMetrics.flatMap((yMetric) =>
     x_metric: xMetric,
     y_metric: yMetric,
     paired_count:
-      ["clicks", "v_clicks"].includes(xMetric) || ["clicks", "v_clicks"].includes(yMetric)
+      ["clicks", "v_clicks"].includes(xMetric) ||
+      ["clicks", "v_clicks"].includes(yMetric)
         ? 1
         : 2,
     coefficient:
-      ["clicks", "v_clicks"].includes(xMetric) || ["clicks", "v_clicks"].includes(yMetric)
+      ["clicks", "v_clicks"].includes(xMetric) ||
+      ["clicks", "v_clicks"].includes(yMetric)
         ? null
         : 1,
   })),
@@ -920,8 +923,38 @@ function payloadFor(url) {
   return undefined;
 }
 
-const server = createServer((request, response) => {
+const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", "http://127.0.0.1:8000");
+  if (
+    request.method === "POST" &&
+    url.pathname === "/api/v1/jjwxc/analytics/cohorts/import"
+  ) {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    const payload = JSON.parse(body);
+    const items = payload.novel_ids.map((novelId) => ({
+      novel_id: novelId,
+      status: jjwxcNovels.some((novel) => novel.novel_id === novelId)
+        ? "ready"
+        : "failed",
+      error_code: jjwxcNovels.some((novel) => novel.novel_id === novelId)
+        ? null
+        : "collection_failed",
+    }));
+    response.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    response.end(
+      JSON.stringify({
+        accepted_count: items.length,
+        ready_count: items.filter((item) => item.status === "ready").length,
+        minimum_analysis_sample: 30,
+        items,
+      }),
+    );
+    return;
+  }
   if (request.method !== "GET") {
     response.writeHead(405, {
       "Content-Type": "application/json",

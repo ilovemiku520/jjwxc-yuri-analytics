@@ -20,6 +20,10 @@ import {
   analyzeLogMomentCorrelation,
   type LogMomentCorrelationStats,
 } from "../../lib/jjwxc/statistics";
+import {
+  MAX_IMPORTED_NOVEL_IDS,
+  MIN_CORRELATION_SAMPLE_SIZE,
+} from "../../lib/jjwxc/cohort-file";
 import type {
   JjwxcCorrelationCell,
   JjwxcMetricName,
@@ -55,6 +59,8 @@ const allMetrics: Array<{ key: JjwxcMetricName; label: string }> = [
   ...timelineMetrics,
   { key: "synopsis_chars", label: "文案字符数" },
 ];
+
+const matrixMetrics = allMetrics.filter((metric) => metric.key !== "v_clicks");
 
 const colors: Record<JjwxcTimelineMetricName, string> = {
   reviews: "#ffb5d2",
@@ -113,7 +119,10 @@ function labelFor(metric: JjwxcMetricName) {
   return allMetrics.find((item) => item.key === metric)?.label ?? metric;
 }
 
-function novelMetricValue(novel: JjwxcNovel, metric: JjwxcMetricName): number | null {
+function novelMetricValue(
+  novel: JjwxcNovel,
+  metric: JjwxcMetricName,
+): number | null {
   if (metric === "reviews") return novel.review_count;
   if (metric === "favorites") return novel.favorite_count;
   if (metric === "points") return novel.points;
@@ -347,7 +356,10 @@ function CorrelationHeatmap({
         role="img"
         aria-label="作品指标 Pearson 相关矩阵热力图"
       />
-      <div className="correlation-scale" aria-label="相关系数颜色图例：蓝色为负相关，浅灰为弱相关，黄色至红色为正相关">
+      <div
+        className="correlation-scale"
+        aria-label="相关系数颜色图例：蓝色为负相关，浅灰为弱相关，黄色至红色为正相关"
+      >
         <span>强负相关</span>
         <i aria-hidden="true" />
         <span>强正相关</span>
@@ -378,11 +390,20 @@ function formatStatistic(value: number | null, digits = 3): string {
       }).format(value);
 }
 
-function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
+function CorrelationSampleComparison({ novels }: { novels: JjwxcNovel[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [rankingMetric, setRankingMetric] = useState<JjwxcMetricName>("favorites");
-  const [displayMode, setDisplayMode] = useState<CorrelationDisplayMode>("both");
-  const topNovels = useMemo(
+  const [rankingMetric, setRankingMetric] =
+    useState<JjwxcMetricName>("favorites");
+  const [displayMode, setDisplayMode] =
+    useState<CorrelationDisplayMode>("both");
+  const maximumSampleSize = Math.min(MAX_IMPORTED_NOVEL_IDS, novels.length);
+  const [sampleSize, setSampleSize] = useState(
+    Math.min(
+      Math.max(MIN_CORRELATION_SAMPLE_SIZE, 1),
+      Math.max(maximumSampleSize, 1),
+    ),
+  );
+  const rankedNovels = useMemo(
     () =>
       [...novels]
         .filter((novel) => novelMetricValue(novel, rankingMetric) !== null)
@@ -392,18 +413,20 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
               (novelMetricValue(left, rankingMetric) ?? 0) ||
             left.novel_id.localeCompare(right.novel_id),
         )
-        .slice(0, 10),
-    [novels, rankingMetric],
+        .slice(0, sampleSize),
+    [novels, rankingMetric, sampleSize],
   );
   const comparisons = useMemo<MetricComparison[]>(
     () =>
       allMetrics
         .filter((metric) => metric.key !== rankingMetric)
         .map((metric) => {
-          const pairs = topNovels.flatMap((novel) => {
+          const pairs = rankedNovels.flatMap((novel) => {
             const x = novelMetricValue(novel, rankingMetric);
             const y = novelMetricValue(novel, metric.key);
-            return x === null || y === null ? [] : ([[x, y]] as Array<[number, number]>);
+            return x === null || y === null
+              ? []
+              : ([[x, y]] as Array<[number, number]>);
           });
           return {
             metric: metric.key,
@@ -414,7 +437,14 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
         .filter(
           (item) => item.stats.pearson !== null || item.stats.spearman !== null,
         ),
-    [rankingMetric, topNovels],
+    [rankedNovels, rankingMetric],
+  );
+  const eligibleComparisons = useMemo(
+    () =>
+      comparisons.filter(
+        (item) => item.stats.pairedCount >= MIN_CORRELATION_SAMPLE_SIZE,
+      ),
+    [comparisons],
   );
 
   useEffect(() => {
@@ -446,7 +476,9 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
       },
       yAxis: {
         type: "category",
-        data: comparisons.map((item) => `${item.label} · n=${item.stats.pairedCount}`),
+        data: eligibleComparisons.map(
+          (item) => `${item.label} · n=${item.stats.pairedCount}`,
+        ),
         axisLabel: { color: "#b9adb6" },
       },
       series: methods.map((method) => ({
@@ -454,7 +486,7 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
         type: "bar",
         barMaxWidth: 22,
         itemStyle: { color: method === "pearson" ? "#f28e5b" : "#8cb8ff" },
-        data: comparisons.map((item) => {
+        data: eligibleComparisons.map((item) => {
           const value = item.stats[method];
           return value === null ? null : Number(value.toFixed(3));
         }),
@@ -471,16 +503,52 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
       observer.disconnect();
       chart.dispose();
     };
-  }, [comparisons, displayMode, rankingMetric]);
+  }, [displayMode, eligibleComparisons, rankingMetric]);
 
   return (
     <section className="chart-panel">
       <div className="panel-heading">
         <div>
-          <p className="eyebrow">TOP 10 · MOMENTS + ROBUST CORRELATION</p>
-          <h2>榜单前十作品相关系数比较</h2>
+          <p className="eyebrow">N ≥ 30 · MOMENTS + ROBUST CORRELATION</p>
+          <h2>可调样本作品相关系数比较</h2>
         </div>
         <span>效应量 · 稳健性 · 估计不确定性</span>
+      </div>
+      <div className="correlation-sample-control">
+        <label htmlFor="correlation-sample-size">
+          分析样本量
+          <strong>{rankedNovels.length}</strong>
+        </label>
+        <input
+          disabled={maximumSampleSize < MIN_CORRELATION_SAMPLE_SIZE}
+          id="correlation-sample-size"
+          max={Math.max(maximumSampleSize, MIN_CORRELATION_SAMPLE_SIZE)}
+          min={MIN_CORRELATION_SAMPLE_SIZE}
+          onChange={(event) => setSampleSize(Number(event.target.value))}
+          step="1"
+          type="range"
+          value={Math.max(sampleSize, MIN_CORRELATION_SAMPLE_SIZE)}
+        />
+        <input
+          aria-label="样本量精确值"
+          disabled={maximumSampleSize < MIN_CORRELATION_SAMPLE_SIZE}
+          max={Math.max(maximumSampleSize, MIN_CORRELATION_SAMPLE_SIZE)}
+          min={MIN_CORRELATION_SAMPLE_SIZE}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            setSampleSize(
+              Math.min(
+                Math.max(value, MIN_CORRELATION_SAMPLE_SIZE),
+                maximumSampleSize,
+              ),
+            );
+          }}
+          type="number"
+          value={Math.max(sampleSize, MIN_CORRELATION_SAMPLE_SIZE)}
+        />
+        <span>
+          可用 {maximumSampleSize} 部 · 系数按每对变量的共同有效样本重新计算
+        </span>
       </div>
       <div className="metric-picker" aria-label="前十榜单排序变量">
         {allMetrics.map((metric) => (
@@ -494,7 +562,10 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
           </button>
         ))}
       </div>
-      <div className="metric-picker correlation-method-picker" aria-label="相关算法显示方式">
+      <div
+        className="metric-picker correlation-method-picker"
+        aria-label="相关算法显示方式"
+      >
         {(
           [
             ["both", "双方法校验"],
@@ -513,14 +584,21 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
         ))}
       </div>
       <div
-        aria-label={`按${labelFor(rankingMetric)}选出的前十作品相关系数比较图`}
+        aria-label={`按${labelFor(rankingMetric)}选出的可调样本作品相关系数比较图`}
         className="analysis-chart top-ten-correlation-chart"
         ref={containerRef}
         role="img"
       />
-      <p className="top-ten-cohort-names">
-        当前样本：{topNovels.map((novel) => novel.title).join("、") || "没有足够数据"}
+      <p className="top-ten-cohort-names" role="status">
+        当前纳入 {rankedNovels.length} 部；{eligibleComparisons.length}{" "}
+        个变量达到 n≥{MIN_CORRELATION_SAMPLE_SIZE} 的展示门槛。
       </p>
+      {eligibleComparisons.length === 0 ? (
+        <p className="cohort-sample-warning">
+          当前没有变量对达到 30
+          个共同有效样本，图表暂停展示，避免把小样本波动误作稳定关系。
+        </p>
+      ) : null}
       <details className="statistics-details">
         <summary>查看一阶矩、二阶矩与估计区间</summary>
         <div className="statistics-table-wrap">
@@ -534,6 +612,7 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
                 <th>协方差</th>
                 <th>Pearson r（95% CI）</th>
                 <th>Spearman ρ</th>
+                <th>门槛</th>
               </tr>
             </thead>
             <tbody>
@@ -542,10 +621,12 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
                   <th scope="row">{item.label}</th>
                   <td>{item.stats.pairedCount}</td>
                   <td>
-                    {formatStatistic(item.stats.xMean)} / {formatStatistic(item.stats.yMean)}
+                    {formatStatistic(item.stats.xMean)} /{" "}
+                    {formatStatistic(item.stats.yMean)}
                   </td>
                   <td>
-                    {formatStatistic(item.stats.xSecondCentralMoment)} / {formatStatistic(item.stats.ySecondCentralMoment)}
+                    {formatStatistic(item.stats.xSecondCentralMoment)} /{" "}
+                    {formatStatistic(item.stats.ySecondCentralMoment)}
                   </td>
                   <td>{formatStatistic(item.stats.covariance)}</td>
                   <td>
@@ -554,6 +635,11 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
                     {formatStatistic(item.stats.pearsonConfidenceHigh)}）
                   </td>
                   <td>{formatStatistic(item.stats.spearman)}</td>
+                  <td>
+                    {item.stats.pairedCount >= MIN_CORRELATION_SAMPLE_SIZE
+                      ? "纳入图表"
+                      : "样本不足"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -564,19 +650,30 @@ function TopTenCorrelationComparison({ novels }: { novels: JjwxcNovel[] }) {
         <summary>统计方法与适用要求</summary>
         <div>
           <p>
-            先按所选变量取前十部作品，再对共同有效样本执行 log(1+x)。Pearson
+            先按所选变量排序并截取用户指定的样本量，再对共同有效样本执行
+            log(1+x)。Pearson
             使用一阶矩完成中心化，以二阶中心矩和协方差刻画线性效应；Spearman
             使用平均秩，对极端值和单调非线性关系更稳健。
           </p>
           <ul>
-            <li>每项 n 是实际成对完整样本数；n 少于 4 时不报告 Fisher z 置信区间。</li>
+            <li>
+              每项 n 是实际成对完整样本数；图表只展示 n≥30 的变量对。30
+              是渐近区间的最低筛选门槛， 不是统计显著性或代表性的保证。
+            </li>
             <li>
               95% 区间是独立配对样本与近似二元正态条件下的 Fisher z
               近似，用于表达估计不确定性；小样本区间通常较宽，不等于“无关系”。
             </li>
-            <li>表中二阶中心矩按 1/n 描述当前前十样本的离散程度，不作为总体无偏方差估计。</li>
-            <li>Pearson 与 Spearman 差异较大时，应优先检查极端值、非线性和并列秩。</li>
-            <li>样本由榜单前十截取得到，存在范围限制与选择偏差，只用于探索，不推断因果。</li>
+            <li>
+              表中二阶中心矩按 1/n
+              描述当前前十样本的离散程度，不作为总体无偏方差估计。
+            </li>
+            <li>
+              Pearson 与 Spearman 差异较大时，应优先检查极端值、非线性和并列秩。
+            </li>
+            <li>
+              样本由所选排序变量截取得到，仍存在范围限制与选择偏差，只用于探索，不推断因果。
+            </li>
           </ul>
         </div>
       </details>
@@ -601,7 +698,7 @@ export function MultivariateExplorer({
   const [dateFrom, setDateFrom] = useState(availableDays[0] ?? "");
   const [dateTo, setDateTo] = useState(availableDays.at(-1) ?? "");
   const [matrixSelection, setMatrixSelection] = useState<JjwxcMetricName[]>(
-    allMetrics.map((item) => item.key),
+    matrixMetrics.map((item) => item.key),
   );
   const vClickCoverage = data.cohort_items.filter(
     (novel) => novel.average_v_chapter_click_count !== null,
@@ -609,7 +706,9 @@ export function MultivariateExplorer({
   const filteredTimeline = useMemo(
     () =>
       data.timeline.filter(
-        (item) => (!dateFrom || item.day >= dateFrom) && (!dateTo || item.day <= dateTo),
+        (item) =>
+          (!dateFrom || item.day >= dateFrom) &&
+          (!dateTo || item.day <= dateTo),
       ),
     [data.timeline, dateFrom, dateTo],
   );
@@ -656,7 +755,10 @@ export function MultivariateExplorer({
             {indexed ? "切换为原值" : "切换为基准指数"}
           </button>
         </div>
-        <div className="metric-picker timeline-aggregation-picker" aria-label="时间轴统计口径">
+        <div
+          className="metric-picker timeline-aggregation-picker"
+          aria-label="时间轴统计口径"
+        >
           <button
             aria-pressed={timelineAggregation === "total"}
             onClick={() => setTimelineAggregation("total")}
@@ -697,7 +799,8 @@ export function MultivariateExplorer({
               min={availableDays[0]}
               onChange={(event) => {
                 setDateFrom(event.target.value);
-                if (dateTo && event.target.value > dateTo) setDateTo(event.target.value);
+                if (dateTo && event.target.value > dateTo)
+                  setDateTo(event.target.value);
               }}
               type="date"
               value={dateFrom}
@@ -710,14 +813,16 @@ export function MultivariateExplorer({
               min={dateFrom || availableDays[0]}
               onChange={(event) => {
                 setDateTo(event.target.value);
-                if (dateFrom && event.target.value < dateFrom) setDateFrom(event.target.value);
+                if (dateFrom && event.target.value < dateFrom)
+                  setDateFrom(event.target.value);
               }}
               type="date"
               value={dateTo}
             />
           </label>
           <p>
-            统计时间：{dateFrom || "最早"} 至 {dateTo || "最新"} · {filteredTimeline.length}
+            统计时间：{dateFrom || "最早"} 至 {dateTo || "最新"} ·{" "}
+            {filteredTimeline.length}
             个快照日 · {data.cohort_items.length} 部作品 ·
             {timelineAggregation === "total" ? "总量统计" : "每部作品均值"}
           </p>
@@ -740,16 +845,26 @@ export function MultivariateExplorer({
           <div>
             <ul>
               <li>总量统计对当日作品的书评、收藏、积分和字数求和。</li>
-              <li>平均每部作品 = 当日总量 ÷ 当日实际有快照的作品数；作品数量变化时应结合该分母解释。</li>
-              <li>V/非 V 点击先计算单部作品的章均点击，再对当天有点击值的作品取均值，不会重复除以作品数。</li>
-              <li>缺失值保持为空且不补零；基准指数仅比较变化速度，不能替代原值规模。</li>
-              <li>历史仅指本项目保存的每日快照，同一天每部作品只使用最后一条有效快照。</li>
+              <li>
+                平均每部作品 = 当日总量 ÷
+                当日实际有快照的作品数；作品数量变化时应结合该分母解释。
+              </li>
+              <li>
+                V/非 V
+                点击先计算单部作品的章均点击，再对当天有点击值的作品取均值，不会重复除以作品数。
+              </li>
+              <li>
+                缺失值保持为空且不补零；基准指数仅比较变化速度，不能替代原值规模。
+              </li>
+              <li>
+                历史仅指本项目保存的每日快照，同一天每部作品只使用最后一条有效快照。
+              </li>
             </ul>
           </div>
         </details>
         <p className="analysis-note v-click-coverage" role="status">
-          V 章点击覆盖：{vClickCoverage}/{data.cohort_items.length} 部作品。
-          V 章数值只在已登录作品页提供时保存；公开点击接口缺失该字段时不会再覆盖登录页中的原值。
+          V 章点击覆盖：{vClickCoverage}/{data.cohort_items.length} 部作品。 V
+          章数值只在已登录作品页提供时保存；公开点击接口缺失该字段时不会再覆盖登录页中的原值。
         </p>
       </section>
 
@@ -762,7 +877,7 @@ export function MultivariateExplorer({
           <span>仅描述关联，不推断因果</span>
         </div>
         <div className="metric-picker" aria-label="矩阵指标，至少选择两个">
-          {allMetrics.map((metric) => (
+          {matrixMetrics.map((metric) => (
             <button
               key={metric.key}
               type="button"
@@ -779,12 +894,13 @@ export function MultivariateExplorer({
         />
         <p className="analysis-note">
           横轴、纵轴和颜色共三维；蓝色表示负相关，浅灰表示弱相关，黄色至红色表示正相关。
-          所有非负计数先执行 log(1+x) 并做 Z-score 标准化，再按成对完整样本计算 Pearson r；
+          所有非负计数先执行 log(1+x) 并做 Z-score 标准化，再按成对完整样本计算
+          Pearson r；
           这降低了积分、点击等长尾变量的极端值影响。矩阵使用所选作品集合的最新快照。
         </p>
       </section>
 
-      <TopTenCorrelationComparison novels={data.cohort_items} />
+      <CorrelationSampleComparison novels={data.cohort_items} />
     </div>
   );
 }

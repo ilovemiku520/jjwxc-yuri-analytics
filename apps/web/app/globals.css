@@ -2027,6 +2027,119 @@ a {
   color: var(--mint);
 }
 
+.cohort-file-importer {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.cohort-file-controls,
+.cohort-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.cohort-file-controls label {
+  display: grid;
+  flex: 1 1 280px;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.cohort-file-controls input {
+  min-height: 42px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.cohort-file-controls button,
+.cohort-import-actions button,
+.cohort-import-actions a {
+  min-height: 42px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.cohort-file-controls button:first-of-type,
+.cohort-import-actions a {
+  border-color: rgba(141, 226, 203, 0.34);
+  color: #17221f;
+  background: var(--mint);
+  font-weight: 750;
+}
+
+.cohort-file-controls button:disabled,
+.cohort-import-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.cohort-file-requirements {
+  margin-top: 0;
+}
+
+.cohort-import-error,
+.cohort-sample-warning {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(242, 142, 91, 0.35);
+  border-radius: 10px;
+  color: #ffc3a9;
+  background: rgba(242, 142, 91, 0.08);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.cohort-import-summary {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cohort-import-summary p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.cohort-import-report {
+  overflow-x: auto;
+  max-height: 280px;
+}
+
+.cohort-import-report table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.68rem;
+}
+
+.cohort-import-report th,
+.cohort-import-report td {
+  padding: 0.5rem 0.55rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cohort-import-report th {
+  color: var(--ink);
+}
+
 .timeline-range {
   display: flex;
   flex-wrap: wrap;
@@ -2099,6 +2212,42 @@ a {
 
 .correlation-method-picker {
   padding-top: 0.6rem;
+}
+
+.correlation-sample-control {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) 74px auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding-top: 0.85rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.correlation-sample-control label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.correlation-sample-control strong {
+  color: var(--mint);
+  font-size: 1rem;
+}
+
+.correlation-sample-control input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent-strong);
+}
+
+.correlation-sample-control input[type="number"] {
+  width: 74px;
+  min-height: 38px;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .analysis-chart {
@@ -2689,6 +2838,20 @@ a {
 
   .cohort-search button {
     min-height: 44px;
+  }
+
+  .cohort-file-controls,
+  .cohort-import-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cohort-file-controls label {
+    flex-basis: auto;
+  }
+
+  .correlation-sample-control {
+    grid-template-columns: 1fr;
   }
 
   .timeline-range {

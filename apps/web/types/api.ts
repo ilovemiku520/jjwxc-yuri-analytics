@@ -602,12 +602,24 @@ export interface JjwxcMultivariateResponse {
   correlation_matrix: JjwxcCorrelationCell[];
 }
 
+export type JjwxcCohortCollectionStatus =
+  "ready" | "queued" | "running" | "failed" | "not_queued";
+
+export interface JjwxcCohortImportItem {
+  novel_id: string;
+  status: JjwxcCohortCollectionStatus;
+  error_code: string | null;
+}
+
+export interface JjwxcCohortImportResponse {
+  accepted_count: number;
+  ready_count: number;
+  minimum_analysis_sample: number;
+  items: JjwxcCohortImportItem[];
+}
+
 export type JjwxcRatingMetric =
-  | "reviews"
-  | "favorites"
-  | "points"
-  | "words"
-  | "clicks";
+  "reviews" | "favorites" | "points" | "words" | "clicks";
 
 export type JjwxcRatingGrade = "SSS" | "SS" | "S" | "A" | "B";
 
