@@ -52,11 +52,11 @@ export function NovelExplorer({ novels }: { novels: JjwxcNovel[] }) {
     <>
       <section className="explorer-controls" aria-label="小说筛选与排序">
         <label>
-          检索
+          结果内筛选
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="标题、作者或标签"
+            placeholder="继续按标签或状态缩小结果"
             maxLength={100}
           />
         </label>
@@ -108,7 +108,7 @@ export function NovelExplorer({ novels }: { novels: JjwxcNovel[] }) {
             <p className="novel-type">
               {novel.novel_type} · {novel.perspective ?? "视角未观测"}
             </p>
-            <dl className="metric-strip">
+            <dl className="metric-strip metric-strip-expanded">
               <div>
                 <dt>收藏</dt>
                 <dd>{formatCount(novel.favorite_count)}</dd>
@@ -129,7 +129,33 @@ export function NovelExplorer({ novels }: { novels: JjwxcNovel[] }) {
                     : formatCount(novel.average_non_v_chapter_click_count)}
                 </dd>
               </div>
+              <div>
+                <dt>V 章均点击</dt>
+                <dd>
+                  {novel.average_v_chapter_click_count === null
+                    ? "当前不可见"
+                    : formatCount(novel.average_v_chapter_click_count)}
+                </dd>
+              </div>
+              <div>
+                <dt>点击覆盖</dt>
+                <dd>
+                  {novel.chapter_click_coverage_count}/
+                  {novel.non_v_chapter_count + novel.v_chapter_count || "—"}
+                </dd>
+              </div>
             </dl>
+            {novel.synopsis_char_count !== null ? (
+              <div className="synopsis-profile">
+                <span>文案画像</span>
+                <p>
+                  {novel.synopsis_char_count} 字 · {novel.synopsis_sentence_count ?? "—"} 句
+                  {novel.synopsis_theme_terms.length
+                    ? ` · ${novel.synopsis_theme_terms.join(" / ")}`
+                    : " · 暂无主题词命中"}
+                </p>
+              </div>
+            ) : null}
             <div className="tag-row">
               {novel.tags.map((tag) => (
                 <span key={tag}>#{tag}</span>

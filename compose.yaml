@@ -229,18 +229,20 @@ services:
       args:
         PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
     profiles: ["live-jjwxc"]
-    entrypoint: ["jjyuri-jjwxc-daily"]
+    entrypoint: ["jjyuri-jjwxc-catalog"]
     command:
-      - --ranking
-      - ${JJYURI_RANKING_KEY:-yuri_current}
-      - --hydrate-top
-      - ${JJYURI_HYDRATE_TOP:-10}
+      - --hydrate-limit
+      - ${JJYURI_HYDRATE_LIMIT:-25}
       - --request-interval-seconds
       - ${JJYURI_REQUEST_INTERVAL_SECONDS:-2}
+      - --cache-dir
+      - /cache
     environment:
       JJYURI_ENABLE_NETWORK: "true"
       PYURI_DATABASE_URL: >-
         postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    volumes:
+      - ./var/cache/jjwxc:/cache
     depends_on:
       db-migrate:
         condition: service_completed_successfully

@@ -28,7 +28,8 @@ class TlsFiles:
 def main() -> None:
     """Run the API with environment-only operational configuration."""
     host = os.getenv("PYURI_API_HOST", "127.0.0.1")
-    port = int(os.getenv("PYURI_API_PORT") or os.getenv("PORT", "8000"))
+    configured_port = os.getenv("PYURI_API_PORT") or os.getenv("PORT")
+    port = int(configured_port) if configured_port else 8000
     log_level = os.getenv("PYURI_LOG_LEVEL", "INFO").lower()
     validate_api_binding(host, os.getenv("PYURI_API_DEPLOYMENT_SCOPE"))
     tls_files = validate_tls_files(

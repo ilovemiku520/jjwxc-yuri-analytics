@@ -7,7 +7,7 @@ from datetime import date
 from typing import Literal, cast
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from pixiv_yuri.jjwxc.demo import JjwxcDemoCatalog, load_demo_catalog
@@ -88,6 +88,75 @@ def available_snapshot_days(factory: sessionmaker[Session] | None) -> tuple[str,
     )
 
 
+def search_catalog(
+    factory: sessionmaker[Session] | None,
+    *,
+    query: str,
+    limit: int,
+    offset: int,
+) -> tuple[tuple[JjwxcNovel, ...], int, DataMode]:
+    """Search the canonical title/author index without loading the whole catalog."""
+    if factory is None:
+        catalog = load_demo_catalog()
+        needle = query.casefold()
+        matches = tuple(
+            item
+            for item in catalog.novels
+            if needle in item.title.casefold() or needle in item.author_display_name.casefold()
+        )
+        return matches[offset : offset + limit], len(matches), "synthetic_fixture"
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    with factory() as session:
+        latest = (
+            select(
+                JjwxcNovelSnapshot.novel_record_id.label("novel_record_id"),
+                func.max(JjwxcNovelSnapshot.observed_at).label("observed_at"),
+            )
+            .where(JjwxcNovelSnapshot.source_mode == "public_candidate")
+            .group_by(JjwxcNovelSnapshot.novel_record_id)
+            .subquery()
+        )
+        base = (
+            select(JjwxcNovelSnapshot, JjwxcNovelRecord, JjwxcAuthorRecord)
+            .join(
+                latest,
+                (latest.c.novel_record_id == JjwxcNovelSnapshot.novel_record_id)
+                & (latest.c.observed_at == JjwxcNovelSnapshot.observed_at),
+            )
+            .join(
+                JjwxcNovelRecord,
+                JjwxcNovelRecord.id == JjwxcNovelSnapshot.novel_record_id,
+            )
+            .join(
+                JjwxcAuthorRecord,
+                JjwxcAuthorRecord.id == JjwxcNovelRecord.author_record_id,
+            )
+            .where(
+                or_(
+                    JjwxcNovelRecord.title.ilike(pattern, escape="\\"),
+                    JjwxcAuthorRecord.display_name.ilike(pattern, escape="\\"),
+                )
+            )
+        )
+        total = session.scalar(select(func.count()).select_from(base.subquery())) or 0
+        rows = list(
+            session.execute(
+                base.order_by(
+                    JjwxcNovelSnapshot.favorite_count.desc(),
+                    JjwxcNovelRecord.novel_id,
+                )
+                .offset(offset)
+                .limit(limit)
+            )
+            .tuples()
+            .all()
+        )
+    if not rows and total == 0:
+        return (), 0, "database_snapshot"
+    return tuple(_novel_from_row(*row) for row in rows), total, "database_snapshot"
+
+
 def _novel_from_row(
     snapshot: JjwxcNovelSnapshot,
     record: JjwxcNovelRecord,
@@ -106,6 +175,10 @@ def _novel_from_row(
         favorite_count=snapshot.favorite_count,
         points=snapshot.points,
         average_non_v_chapter_click_count=snapshot.average_non_v_chapter_click_count,
+        average_v_chapter_click_count=snapshot.average_v_chapter_click_count,
+        non_v_chapter_count=snapshot.non_v_chapter_count,
+        v_chapter_count=snapshot.v_chapter_count,
+        chapter_click_coverage_count=snapshot.chapter_click_coverage_count,
         synopsis_char_count=snapshot.synopsis_char_count,
         synopsis_sentence_count=snapshot.synopsis_sentence_count,
         synopsis_theme_terms=tuple(snapshot.synopsis_theme_terms),
@@ -135,6 +208,11 @@ def _trend_points(
             for item in snapshots
             if item.average_non_v_chapter_click_count is not None
         ]
+        v_clicks = [
+            item.average_v_chapter_click_count
+            for item in snapshots
+            if item.average_v_chapter_click_count is not None
+        ]
         points.append(
             JjwxcTrendPoint(
                 day=day,
@@ -145,6 +223,10 @@ def _trend_points(
                 total_word_count=sum(item.word_count for item in snapshots),
                 click_coverage_count=len(clicks),
                 mean_non_v_chapter_click_count=(sum(clicks) / len(clicks) if clicks else None),
+                v_click_coverage_count=len(v_clicks),
+                mean_v_chapter_click_count=(
+                    sum(v_clicks) / len(v_clicks) if v_clicks else None
+                ),
             )
         )
     return tuple(points)

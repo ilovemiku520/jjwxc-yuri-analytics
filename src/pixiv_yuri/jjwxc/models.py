@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class JjwxcNovel(BaseModel):
-    """One normalized novel snapshot without raw synopsis, chapters, or comments."""
+    """One normalized novel snapshot without raw synopsis, chapter text, or comments."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -25,6 +25,10 @@ class JjwxcNovel(BaseModel):
     favorite_count: int = Field(ge=0)
     points: int = Field(ge=0)
     average_non_v_chapter_click_count: int | None = Field(default=None, ge=0)
+    average_v_chapter_click_count: int | None = Field(default=None, ge=0)
+    non_v_chapter_count: int = Field(default=0, ge=0)
+    v_chapter_count: int = Field(default=0, ge=0)
+    chapter_click_coverage_count: int = Field(default=0, ge=0)
     synopsis_char_count: int | None = Field(default=None, ge=0, le=100_000)
     synopsis_sentence_count: int | None = Field(default=None, ge=0, le=10_000)
     synopsis_theme_terms: tuple[str, ...] = Field(default=(), max_length=12)
@@ -67,6 +71,18 @@ class JjwxcNovelCandidate(JjwxcNovel):
     )
 
 
+class JjwxcChapterMetric(BaseModel):
+    """Copyright-minimized chapter metadata; titles and summaries are never retained."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    chapter_id: int = Field(ge=1, le=1_000_000)
+    position: int = Field(ge=1, le=1_000_000)
+    is_vip: bool
+    word_count: int = Field(ge=0)
+    click_count: int | None = Field(default=None, ge=0)
+
+
 class JjwxcTrendPoint(BaseModel):
     """Synthetic or canonical daily aggregate used by the private dashboard."""
 
@@ -80,3 +96,5 @@ class JjwxcTrendPoint(BaseModel):
     total_word_count: int = Field(ge=0)
     click_coverage_count: int = Field(ge=0)
     mean_non_v_chapter_click_count: float | None = Field(default=None, ge=0)
+    v_click_coverage_count: int = Field(default=0, ge=0)
+    mean_v_chapter_click_count: float | None = Field(default=None, ge=0)

@@ -73,6 +73,21 @@ export default async function NovelDetailPage({
               </dd>
             </div>
             <div>
+              <dt>V 章节章均点击数</dt>
+              <dd>
+                {novel.average_v_chapter_click_count === null
+                  ? "当前公开响应不可见"
+                  : formatCount(novel.average_v_chapter_click_count)}
+              </dd>
+            </div>
+            <div>
+              <dt>章节点击覆盖</dt>
+              <dd>
+                {novel.chapter_click_coverage_count}/
+                {novel.non_v_chapter_count + novel.v_chapter_count || "—"}
+              </dd>
+            </div>
+            <div>
               <dt>作品视角</dt>
               <dd>{novel.perspective ?? "未观测"}</dd>
             </div>
@@ -86,6 +101,16 @@ export default async function NovelDetailPage({
           <p>
             本页不含文案原文、章节标题、章节正文、评论内容或读者身份；仅可保留文案长度、句数和固定主题词等不可还原特征。指标是某一时点的快照，不代表平台背书或作品质量结论。
           </p>
+          {novel.synopsis_char_count !== null ? (
+            <p>
+              文案画像：{novel.synopsis_char_count} 字、
+              {novel.synopsis_sentence_count ?? "—"} 句
+              {novel.synopsis_theme_terms.length
+                ? `，主题词 ${novel.synopsis_theme_terms.join(" / ")}`
+                : "，暂无主题词命中"}
+              。
+            </p>
+          ) : null}
           <div className="tag-row">
             {novel.tags.map((tag) => (
               <span key={tag}>#{tag}</span>

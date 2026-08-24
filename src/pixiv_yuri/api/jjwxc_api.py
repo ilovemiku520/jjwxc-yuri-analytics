@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from pixiv_yuri.jjwxc.analytics import (
@@ -21,9 +23,15 @@ from pixiv_yuri.jjwxc.database_catalog import (
     DataMode,
     available_snapshot_days,
     load_catalog,
+    search_catalog,
 )
 from pixiv_yuri.jjwxc.demo import load_demo_catalog
 from pixiv_yuri.jjwxc.models import JjwxcNovel, JjwxcTrendPoint
+from pixiv_yuri.jjwxc.persistence import (
+    JjwxcAuthorRecord,
+    JjwxcChannelRankingSnapshot,
+    JjwxcNovelRecord,
+)
 from pixiv_yuri.jjwxc.ratings import (
     RATING_METRICS,
     RatingGrade,
@@ -59,6 +67,41 @@ class JjwxcNovelPage(BaseModel):
     sort: NovelSort
     items: tuple[JjwxcNovel, ...]
     total: int = Field(ge=0)
+
+
+class JjwxcSearchResponse(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    data_mode: DataMode
+    query: str
+    match_fields: tuple[Literal["title", "author_display_name"], ...] = (
+        "title",
+        "author_display_name",
+    )
+    items: tuple[JjwxcNovel, ...]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    offset: int = Field(ge=0)
+
+
+class JjwxcChannelRankingItem(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    rank: int = Field(ge=1, le=100)
+    novel_id: str
+    title: str
+    author_id: str | None
+    author_display_name: str | None
+    observed_at: str
+
+
+class JjwxcChannelRankingResponse(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    ranking_key: Literal["channel_gold", "newcomer"]
+    label: str
+    observation_day: str | None
+    items: tuple[JjwxcChannelRankingItem, ...]
 
 
 class JjwxcAuthorSummary(BaseModel):
@@ -244,6 +287,105 @@ def register_jjwxc_routes(
         if not matches:
             raise HTTPException(status_code=404, detail="jjwxc_novel_not_found")
         return matches[0]
+
+    @application.get("/api/v1/jjwxc/search", response_model=JjwxcSearchResponse)
+    def search_novels(
+        query: str = Query(min_length=1, max_length=100),
+        limit: int = Query(default=50, ge=1, le=100),
+        offset: int = Query(default=0, ge=0, le=100_000),
+    ) -> JjwxcSearchResponse:
+        normalized = " ".join(query.split())
+        items, total, data_mode = search_catalog(
+            session_factory,
+            query=normalized,
+            limit=limit,
+            offset=offset,
+        )
+        return JjwxcSearchResponse(
+            data_mode=data_mode,
+            query=normalized,
+            items=items,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    @application.get(
+        "/api/v1/jjwxc/channel-rankings",
+        response_model=JjwxcChannelRankingResponse,
+    )
+    def channel_rankings(
+        ranking_key: Literal["channel_gold", "newcomer"] = "channel_gold",
+        day: str | None = Query(default=None, pattern=r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"),
+    ) -> JjwxcChannelRankingResponse:
+        labels = {"channel_gold": "频道金榜", "newcomer": "新手金榜"}
+        if session_factory is None:
+            return JjwxcChannelRankingResponse(
+                ranking_key=ranking_key,
+                label=labels[ranking_key],
+                observation_day=None,
+                items=(),
+            )
+        with session_factory() as session:
+            selected_day = day
+            if selected_day is None:
+                latest_day = session.scalar(
+                    select(func.max(JjwxcChannelRankingSnapshot.observation_day)).where(
+                        JjwxcChannelRankingSnapshot.ranking_key == ranking_key
+                    )
+                )
+                selected_day = latest_day.isoformat() if latest_day else None
+            if selected_day is None:
+                rows: list[
+                    tuple[
+                        JjwxcChannelRankingSnapshot,
+                        JjwxcNovelRecord | None,
+                        JjwxcAuthorRecord | None,
+                    ]
+                ] = []
+            else:
+                target_day = date.fromisoformat(selected_day)
+                rows = list(
+                    session.execute(
+                        select(
+                            JjwxcChannelRankingSnapshot,
+                            JjwxcNovelRecord,
+                            JjwxcAuthorRecord,
+                        )
+                        .outerjoin(
+                            JjwxcNovelRecord,
+                            JjwxcNovelRecord.novel_id
+                            == JjwxcChannelRankingSnapshot.novel_id,
+                        )
+                        .outerjoin(
+                            JjwxcAuthorRecord,
+                            JjwxcAuthorRecord.id == JjwxcNovelRecord.author_record_id,
+                        )
+                        .where(
+                            JjwxcChannelRankingSnapshot.ranking_key == ranking_key,
+                            JjwxcChannelRankingSnapshot.observation_day == target_day,
+                        )
+                        .order_by(JjwxcChannelRankingSnapshot.rank)
+                    )
+                    .tuples()
+                    .all()
+                )
+        return JjwxcChannelRankingResponse(
+            ranking_key=ranking_key,
+            label=labels[ranking_key],
+            observation_day=selected_day,
+            items=tuple(
+                JjwxcChannelRankingItem(
+                    rank=ranking.rank,
+                    novel_id=ranking.novel_id,
+                    title=ranking.title,
+                    author_id=author.author_id if author else None,
+                    author_display_name=author.display_name if author else None,
+                    observed_at=ranking.observed_at.isoformat(),
+                )
+                for ranking, _, author in rows
+            ),
+        )
 
     @application.get("/api/v1/jjwxc/authors", response_model=JjwxcAuthorPage)
     def authors(sort: AuthorSort = "favorites") -> JjwxcAuthorPage:

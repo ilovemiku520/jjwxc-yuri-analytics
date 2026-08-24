@@ -38,6 +38,27 @@ def test_jjwxc_novel_filters_and_sorting_are_bounded() -> None:
     assert invalid.status_code == 422
 
 
+def test_indexed_search_matches_title_or_author_and_channel_lists_are_explicit() -> None:
+    with TestClient(create_app(lambda: None)) as client:
+        title = client.get("/api/v1/jjwxc/search", params={"query": "向晚"})
+        author = client.get("/api/v1/jjwxc/search", params={"query": "南汀"})
+        channel = client.get(
+            "/api/v1/jjwxc/channel-rankings", params={"ranking_key": "channel_gold"}
+        )
+
+    assert title.status_code == 200
+    assert title.json()["items"][0]["title"] == "向晚潮声"
+    assert author.status_code == 200
+    assert {item["author_display_name"] for item in author.json()["items"]} == {"南汀"}
+    assert channel.status_code == 200
+    assert channel.json() == {
+        "ranking_key": "channel_gold",
+        "label": "频道金榜",
+        "observation_day": None,
+        "items": [],
+    }
+
+
 def test_jjwxc_author_detail_contains_only_its_novels() -> None:
     with TestClient(create_app(lambda: None)) as client:
         response = client.get("/api/v1/jjwxc/authors/700001")

@@ -60,6 +60,7 @@ pyuri-review-browser-candidate = "pixiv_yuri.governance.candidate_import_review:
 pyuri-review-candidate = "pixiv_yuri.governance.candidate_import_review:main"
 jjyuri-jjwxc-probe = "pixiv_yuri.jjwxc.public_probe:main"
 jjyuri-jjwxc-daily = "pixiv_yuri.jjwxc.ranking_collector:main"
+jjyuri-jjwxc-catalog = "pixiv_yuri.jjwxc.catalog_collector:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

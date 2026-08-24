@@ -417,6 +417,10 @@ export interface JjwxcNovel {
   favorite_count: number;
   points: number;
   average_non_v_chapter_click_count: number | null;
+  average_v_chapter_click_count: number | null;
+  non_v_chapter_count: number;
+  v_chapter_count: number;
+  chapter_click_coverage_count: number;
   synopsis_char_count: number | null;
   synopsis_sentence_count: number | null;
   synopsis_theme_terms: string[];
@@ -442,6 +446,32 @@ export interface JjwxcNovelPage {
   sort: JjwxcNovelSort;
   items: JjwxcNovel[];
   total: number;
+}
+
+export interface JjwxcSearchResponse {
+  data_mode: "synthetic_fixture" | "database_snapshot";
+  query: string;
+  match_fields: ["title", "author_display_name"];
+  items: JjwxcNovel[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface JjwxcChannelRankingItem {
+  rank: number;
+  novel_id: string;
+  title: string;
+  author_id: string | null;
+  author_display_name: string | null;
+  observed_at: string;
+}
+
+export interface JjwxcChannelRankingResponse {
+  ranking_key: "channel_gold" | "newcomer";
+  label: string;
+  observation_day: string | null;
+  items: JjwxcChannelRankingItem[];
 }
 
 export interface JjwxcAuthorSummary {
@@ -474,6 +504,8 @@ export interface JjwxcTrendPoint {
   total_word_count: number;
   click_coverage_count: number;
   mean_non_v_chapter_click_count: number | null;
+  v_click_coverage_count: number;
+  mean_v_chapter_click_count: number | null;
 }
 
 export interface JjwxcTrendResponse {

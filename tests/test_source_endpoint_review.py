@@ -172,7 +172,7 @@ def test_cli_missing_default_evidence_writes_machine_blocked_report() -> None:
                 "--evidence",
                 str(root / "missing-evidence.json"),
                 "--contract-expires-at",
-                "2026-08-24T00:00:00+00:00",
+                "2026-08-25T00:00:00+00:00",
                 "--output",
                 str(report_path),
             ]
@@ -207,7 +207,7 @@ def test_cli_finalizes_from_local_json_without_network() -> None:
                 "--evidence",
                 str(evidence_path),
                 "--contract-expires-at",
-                "2026-08-24T00:00:00+00:00",
+                "2026-08-25T00:00:00+00:00",
                 "--output",
                 str(report_path),
                 "--contract-output",

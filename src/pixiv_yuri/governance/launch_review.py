@@ -29,7 +29,7 @@ from pixiv_yuri.governance.g0 import (
 from pixiv_yuri.shared.config import Settings
 from pixiv_yuri.shared.database import build_engine
 
-EXPECTED_MIGRATION_VERSION = "20260823_0011"
+EXPECTED_MIGRATION_VERSION = "20260824_0012"
 
 
 @dataclass(frozen=True, slots=True)

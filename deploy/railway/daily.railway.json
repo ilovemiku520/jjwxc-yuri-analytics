@@ -6,7 +6,7 @@
     "watchPatterns": ["src/**", "migrations/**", "pyproject.toml", "apps/api/Dockerfile"]
   },
   "deploy": {
-    "startCommand": "jjyuri-jjwxc-daily --ranking yuri_current --hydrate-top 10 --request-interval-seconds 2",
+    "startCommand": "jjyuri-jjwxc-catalog --hydrate-limit 49 --request-interval-seconds 2 --cache-dir /data/cache/jjwxc",
     "cronSchedule": "30 19 * * *",
     "restartPolicyType": "NEVER"
   }

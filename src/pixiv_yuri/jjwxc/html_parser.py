@@ -10,7 +10,7 @@ from typing import Literal
 
 from pixiv_yuri.jjwxc.models import JjwxcNovelCandidate
 
-MAX_HTML_BYTES = 750_000
+MAX_HTML_BYTES = 1_500_000
 _META_CHARSET = re.compile(rb"charset\s*=\s*['\"]?([A-Za-z0-9_-]+)", re.IGNORECASE)
 _ALLOWED_CHARSETS = {"utf-8", "utf8", "gb18030", "gbk", "gb2312"}
 _SYNOPSIS_THEME_TERMS = (

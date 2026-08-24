@@ -19,6 +19,7 @@ node_modules/
 coverage/
 *.tsbuildinfo
 var/raw/
+var/cache/
 var/imports/
 var/candidates/
 var/rtk/

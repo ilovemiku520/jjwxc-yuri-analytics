@@ -8,10 +8,15 @@
 `daily` 定时任务。这样保留现有 Next.js、FastAPI、Alembic 和 PostgreSQL，不在本机到期前进行
 高风险重写。网站只发布聚合元数据与统计结果，不发布原始 HTML、文案原文、章节或评论内容。
 
-`daily` 默认在北京时间每日 03:30 执行（UTC cron `30 19 * * *`）：请求一次固定的“原创·百合”
-榜单，再以单并发、至少 2 秒间隔补充榜单前 10 部作品公开概览。没有自动重试；403、429、验证码、
-跳转、响应过大或结构漂移均使当次任务失败退出。相同榜单、日期、作品和位置有数据库唯一约束，
-重跑不会复制榜单行。
+`daily` 默认在北京时间每日 03:30 执行（UTC cron `30 19 * * *`）：读取百合频道首页的“频道金榜”
+与“新手金榜”，把页面中发现的全部作品编号加入可恢复队列，再以单并发、至少 2 秒间隔补全每天
+最多 49 部作品的概览、文案统计特征、章节 V/非 V 标识和公开逐章点击。任务会逐日完成积压，而不是
+一次无边界压满来源站。403、429、验证码、跳转、响应过大或结构漂移不会触发高速重试；失败作品
+至少 6 小时后才可重试。相同榜单、日期、作品、位置和章节有数据库唯一约束，重跑不会复制数据。
+
+原始页面与点击响应只保存在不对外提供的 24 小时压缩缓存中，长期数据库不保存文案原文、章节标题、
+内容提要、正文或评论。生产 `daily` 服务应挂载一个 500MB Volume 到 `/data/cache`；没有 Volume 时
+任务仍可运行，但部署重建后缓存会丢失。标题与作者名使用 PostgreSQL `pg_trgm` 索引支持中文子串搜索。
 
 ## 成本可行性
 
@@ -31,7 +36,9 @@
 3. `web`：配置路径 `/deploy/railway/web.railway.json`；设置
    `PYURI_INTERNAL_API_URL=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}`，只为该服务生成公网域名。
 4. `daily`：配置路径 `/deploy/railway/daily.railway.json`；设置
-   `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}` 和 `JJYURI_ENABLE_NETWORK=true`，不生成公网域名。
+   `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}` 和 `JJYURI_ENABLE_NETWORK=true`，不生成公网域名；挂载
+   Volume 到 `/data/cache`。可用 `JJYURI_HYDRATE_LIMIT` 控制日补全量，默认生产命令为 49，使频道页
+   加每部作品两项响应的单次运行请求上界保持在 100 次以内。
 
 Railway 为每个服务使用同一代码仓库根目录；三个配置文件在服务 Settings 的 Config File 中分别指定。
 数据库迁移由 api 的 pre-deploy 步骤执行。生产环境先运行 daily 的 dry-run，再手动触发一次正式任务并

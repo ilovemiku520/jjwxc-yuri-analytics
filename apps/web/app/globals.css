@@ -226,6 +226,27 @@ a {
   gap: 0.5rem;
   margin: 1rem 0;
 }
+.metric-strip-expanded {
+  grid-template-columns: repeat(3, 1fr);
+}
+.synopsis-profile {
+  margin: 0.85rem 0;
+  padding: 0.75rem 0.85rem;
+  border-left: 2px solid rgba(141, 226, 203, 0.5);
+  color: var(--muted);
+  background: rgba(141, 226, 203, 0.045);
+}
+.synopsis-profile span {
+  color: var(--mint);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.synopsis-profile p {
+  margin: 0.35rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
 .metric-strip div {
   padding: 0.65rem;
   border: 1px solid var(--line);
@@ -574,6 +595,189 @@ a {
 .catalog-page {
   flex: 1;
   padding: 3.4rem 0 4rem;
+}
+
+.novels-index-page {
+  position: relative;
+}
+
+.novels-heading h1 {
+  max-width: 720px;
+}
+
+.catalog-search {
+  margin: 0 0 1.2rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(255, 181, 210, 0.24);
+  border-radius: 22px;
+  background:
+    linear-gradient(110deg, rgba(241, 139, 184, 0.13), transparent 55%),
+    var(--surface);
+}
+
+.catalog-search > label {
+  display: block;
+  margin-bottom: 0.65rem;
+  color: var(--accent-strong);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.catalog-search > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+}
+
+.catalog-search input {
+  min-width: 0;
+  min-height: 52px;
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  outline: none;
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.24);
+  font-size: 1rem;
+}
+
+.catalog-search input:focus {
+  border-color: rgba(255, 181, 210, 0.68);
+  box-shadow: 0 0 0 3px rgba(241, 139, 184, 0.1);
+}
+
+.catalog-search button {
+  min-width: 122px;
+  border: 0;
+  border-radius: 13px;
+  color: #24131d;
+  background: var(--accent-strong);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.catalog-search p,
+.ranking-context {
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.channel-ranking-panel {
+  margin: 1.2rem 0 2.4rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+}
+
+.channel-ranking-heading,
+.catalog-results-heading,
+.ranking-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.channel-ranking-heading h2,
+.catalog-results-heading h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.8rem;
+  font-weight: 500;
+}
+
+.ranking-tabs {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.ranking-tabs button {
+  padding: 0.62rem 0.82rem;
+  border: 0;
+  border-radius: 9px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.ranking-tabs button[aria-selected="true"] {
+  color: var(--ink);
+  background: rgba(241, 139, 184, 0.18);
+}
+
+.channel-ranking-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.channel-ranking-list li {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.7rem;
+  border-top: 1px solid var(--line);
+}
+
+.channel-ranking-list li > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+}
+
+.channel-ranking-list a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-ranking-list small,
+.ranking-source {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.channel-rank-number {
+  color: var(--accent-strong);
+  font-family: Georgia, serif;
+  font-size: 1.1rem;
+}
+
+.catalog-results-heading {
+  margin: 0 0 0.5rem;
+}
+
+.catalog-results-heading a {
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 760px) {
+  .catalog-search > div,
+  .channel-ranking-list {
+    grid-template-columns: 1fr;
+  }
+  .catalog-search button {
+    min-height: 48px;
+  }
+  .channel-ranking-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .metric-strip-expanded {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .page-heading {

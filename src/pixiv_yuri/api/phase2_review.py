@@ -11,7 +11,7 @@ from typing import Any
 
 from pixiv_yuri.api.contract import EXPECTED_API_PATH_COUNT
 
-EXPECTED_MIGRATION = "20260823_0011"
+EXPECTED_MIGRATION = "20260824_0012"
 REQUIRED_API_STATUS_FIELDS = (
     "source_records_status",
     "schema_definitions_status",

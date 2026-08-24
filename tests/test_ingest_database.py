@@ -81,6 +81,9 @@ class IngestModelTests(unittest.TestCase):
                 "jjwxc_novels",
                 "jjwxc_novel_snapshots",
                 "jjwxc_ranking_snapshots",
+                "jjwxc_channel_ranking_snapshots",
+                "jjwxc_discovery_queue",
+                "jjwxc_chapter_snapshots",
             },
         )
         self.assertNotIn("body", RawObservation.__table__.columns)
