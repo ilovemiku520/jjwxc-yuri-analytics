@@ -29,11 +29,13 @@ function Read-RailwayConfig {
 $api = Read-RailwayConfig "deploy\railway\api.railway.json"
 $web = Read-RailwayConfig "deploy\railway\web.railway.json"
 $daily = Read-RailwayConfig "deploy\railway\daily.railway.json"
+$backup = Read-RailwayConfig "deploy\railway\backup.railway.json"
 $schema = "https://railway.com/railway.schema.json"
 foreach ($item in @(
     @{ name = "api"; config = $api; dockerfile = "apps/api/Dockerfile" },
     @{ name = "web"; config = $web; dockerfile = "apps/web/Dockerfile" },
     @{ name = "daily"; config = $daily; dockerfile = "apps/api/Dockerfile" }
+    @{ name = "backup"; config = $backup; dockerfile = "apps/backup/Dockerfile" }
 )) {
     if ($null -eq $item.config) { continue }
     Add-Check "$($item.name).schema" ($item.config.'$schema' -eq $schema) "Official Railway schema URL"
@@ -42,6 +44,16 @@ foreach ($item in @(
         ($item.config.build.dockerfilePath -eq $item.dockerfile -and
          (Test-Path -LiteralPath (Join-Path $projectRoot $item.dockerfile) -PathType Leaf)) `
         "Repository-relative Dockerfile exists"
+}
+
+if ($null -ne $backup) {
+    Add-Check "backup.script" `
+        (Test-Path -LiteralPath (Join-Path $projectRoot "apps\backup\run-backup.sh") -PathType Leaf) `
+        "Logical backup entry point exists"
+    Add-Check "backup.cron" ($backup.deploy.cronSchedule -eq "30 20 * * *") `
+        "UTC 20:30 equals Asia/Shanghai 04:30 next day"
+    Add-Check "backup.restart" ($backup.deploy.restartPolicyType -eq "NEVER") `
+        "Backup job is not restarted into an overlapping dump"
 }
 
 if ($null -ne $api) {
@@ -125,6 +137,7 @@ $report = [ordered]@{
         api = @("PYURI_DATABASE_URL", "PYURI_API_HOST", "PYURI_API_DEPLOYMENT_SCOPE", "PYURI_SHARED_CONSUMER_CONTROLS_ENABLED", "PYURI_COHORT_IMPORT_TOKEN")
         web = @("PYURI_INTERNAL_API_URL", "PYURI_COHORT_IMPORT_TOKEN")
         daily = @("PYURI_DATABASE_URL", "JJYURI_ENABLE_NETWORK")
+        backup = @("DATABASE_URL")
     }
     config_as_code_notice = "Railway Config as Code remains usable for legacy services until 2026-12-01; migrate to Railway Infrastructure as Code after initial recovery deployment."
     official_references = @(

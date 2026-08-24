@@ -590,3 +590,9 @@ used during diagnostics were deleted. The fourth `daily` service is now deployed
 a public domain, with a 500MB `/data/cache` volume and the bounded collector scheduled at
 UTC 19:30 (Asia/Shanghai 03:30). The workspace remains on the cardless Trial; the next
 online evidence is the 2026-08-25 automatic run and second observation-day snapshot.
+
+The fifth and final Trial service, `backup`, is deployed privately in Singapore with the
+third 500MB Trial volume mounted at `/backups`. It creates a PostgreSQL custom-format dump
+at Asia/Shanghai 04:30, validates the archive with `pg_restore --list`, writes SHA-256
+evidence and retains seven dumps. The first verified archive
+`jjwxc-20260824T104711Z.dump` is 136287 bytes. No database or backup TCP endpoint is public.

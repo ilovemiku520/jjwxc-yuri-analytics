@@ -4,8 +4,8 @@
 
 ## 推荐架构
 
-采用 Railway Hobby 单项目部署四个服务：公开 `web`、仅私网 `api`、托管 PostgreSQL、短时
-`daily` 定时任务。这样保留现有 Next.js、FastAPI、Alembic 和 PostgreSQL，不在本机到期前进行
+采用 Railway 单项目部署五个服务：公开 `web`、仅私网 `api`、托管 PostgreSQL、短时
+`daily` 定时任务与逻辑备份任务 `backup`。这样保留现有 Next.js、FastAPI、Alembic 和 PostgreSQL，不在本机到期前进行
 高风险重写。网站只发布聚合元数据与统计结果，不发布原始 HTML、文案原文、章节或评论内容。
 
 `daily` 默认在北京时间每日 03:30 执行（UTC cron `30 19 * * *`）：读取百合频道首页的“频道金榜”
@@ -25,10 +25,10 @@
 - 该项目的主要费用来自持续运行的 web、api 和 PostgreSQL；每日任务只运行几十秒，增量很小。
 - 初期保守预算为 10–25 美元/月。上线一周后应依据 Railway Usage 实测，将计算支出硬上限设为
   25 美元；本项目不配置邮件提醒，费用由 Railway 控制台手动检查。
-- 免费方案不适合这个交付：Railway 免费层正式期只有三个服务且没有 cron；Render 免费 PostgreSQL
-  30 天到期。需要长期历史快照时，持久数据库不能依赖会自动到期的免费实例。
+- Trial 到期后会转为每月 1 美元额度的 Free，该额度预计不足以让 Web、API 与 PostgreSQL 整月常驻。
+  需要长期历史快照时，持久数据库不能依赖会自动到期的免费额度。
 
-## 四个服务的变量
+## 五个服务的变量
 
 1. PostgreSQL：使用 Railway PostgreSQL 模板，保持私网。
 2. `api`：配置路径 `/deploy/railway/api.railway.json`；设置
@@ -42,15 +42,19 @@
    `PYURI_DATABASE_URL=${{Postgres.DATABASE_URL}}` 和 `JJYURI_ENABLE_NETWORK=true`，不生成公网域名；挂载
    Volume 到 `/data/cache`。可用 `--index-pages` 与 `JJYURI_HYDRATE_LIMIT` 控制摘要扫描和详细补全量；
    默认生产命令扫描 10 页、补全 39 部作品与 10 位作者，使单次运行请求上界为 99 次。
+5. `backup`：配置路径 `/deploy/railway/backup.railway.json`；设置
+   `DATABASE_URL=${{Postgres.DATABASE_URL}}`，不生成公网域名；挂载 500MB Volume 到 `/backups`。
+   UTC 每日 20:30（北京时间次日 04:30）执行 `pg_dump` custom-format 逻辑备份，先用
+   `pg_restore --list` 校验再原子改名，并保留最近 7 份及其 SHA-256 文件。
 
-Railway 为每个服务使用同一代码仓库根目录；三个配置文件在服务 Settings 的 Config File 中分别指定。
+Railway 为每个服务使用同一代码仓库根目录；四个代码服务配置文件在 Service Settings 中分别指定。
 数据库迁移由 api 的 pre-deploy 步骤执行。生产环境先运行 daily 的 dry-run，再手动触发一次正式任务并
 核对榜单行数、作品快照数与网站数据来源标识。
 
 ## 到期前迁移顺序
 
 1. 将当前目录建立为 Git 仓库并推送到私有远程仓库；不得提交 `.env`、数据库密码或运行时报告。
-2. 在 Railway 创建项目、PostgreSQL 及三个代码服务，并按上文绑定配置与变量。
+2. 在 Railway 创建项目、PostgreSQL 及四个代码服务，并按上文绑定配置与变量。
 3. 先部署 api，再部署 web；确认网页可访问后手动触发 daily。
 4. 从本机 PostgreSQL 导出一次压缩备份并上传到独立云盘；代码仓库不能替代数据库备份。
 5. 配置消费硬上限和失败通知，确认次日 03:30 的第二个快照后，才把本机视为可丢弃环境。
@@ -74,13 +78,13 @@ custom-format 备份，并在随机命名的隔离数据库中完成一次恢复
 .\scripts\build-cloud-source-release.ps1
 ```
 
-该命令先校验 API、Web、daily 三份 Railway 配置、Dockerfile、健康检查、数据库迁移命令、UTC Cron 与
+该命令先校验 API、Web、daily、backup 四份 Railway 配置、Dockerfile、健康检查、数据库迁移命令、UTC Cron 与
 采集请求上界，再用 Git 的已跟踪/未忽略文件清单打包当前工作区。发布包会包含尚未提交的新模块，但排除
 `.env`、Git 历史、数据库备份、缓存、日志、虚拟环境和依赖目录，并用本机 `.env` 的值执行不回显内容的
 泄漏扫描。输出位于 `var/releases/jjwxc-source-release-*.zip`。
 
 截至 2026-08-24，Railway 官方已将 Config as Code 标记为弃用，但既有服务仍支持到 2026-12-01。
-为优先完成虚拟机到期迁移，本项目保留三份现有配置进行首次恢复部署；上线后应迁移到 Railway
+为优先完成虚拟机到期迁移，本项目保留四份现有配置进行首次恢复部署；上线后应迁移到 Railway
 Infrastructure as Code，不能把该兼容期当作长期方案。
 
 ## 2026-08-24 实际部署状态
@@ -96,6 +100,9 @@ Infrastructure as Code，不能把该兼容期当作长期方案。
 - 当前工作区仍为 Railway Trial（30 天或 5 美元额度），没有绑定信用卡。按 Railway 当前每项目最多
   5 个 Trial 服务的规则，`daily` 已作为第 4 个服务部署到新加坡；它没有公网域名，不常驻运行，挂载
   500MB `daily-volume` 到 `/data/cache`，并以 UTC `30 19 * * *`（北京时间每日 03:30）执行。
+- `backup` 已作为第 5 个且最后一个 Trial 服务部署到新加坡；它没有公网域名，挂载第三个 500MB Trial
+  卷 `/backups`。首份 `jjwxc-20260824T104711Z.dump` 已通过 `pg_restore --list` 校验，大小 136287 字节；
+  后续每天 04:30 执行并保留最近 7 份。
 - 下一项线上证据是核对 2026-08-25 首次自动运行结果及第二个观测日快照。Trial 结束后会转为每月
   1 美元额度的 Free，但当前三项常驻服务预计不能整月维持；必须在额度结束前完成数据库备份或迁移。
 
