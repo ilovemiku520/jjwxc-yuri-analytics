@@ -122,12 +122,22 @@ def test_adjustable_ratings_are_normalized_ranked_and_explicitly_relative() -> N
     payload = default_response.json()
     assert payload["interpretation"] == "cohort_relative_public_data_performance"
     assert sum(payload["default_weights"].values()) == 10_000
+    assert sum(payload["author_default_weights"].values()) == 10_000
+    assert set(payload["author_default_weights"]) == {
+        "nonlocked_works",
+        "author_favorites",
+        "work_favorites",
+        "words",
+        "points",
+    }
     assert payload["default_weights"]["favorites"] > payload["default_weights"]["words"]
     assert {item["grade"] for item in payload["novels"]} <= {"SSS", "SS", "S", "A", "B"}
     assert [item["score_basis_points"] for item in payload["novels"]] == sorted(
         [item["score_basis_points"] for item in payload["novels"]], reverse=True
     )
     assert any(item["coverage_basis_points"] == 8_000 for item in payload["novels"])
+    assert all("raw_values" in item for item in payload["authors"])
+    assert all("work_favorites" in item["component_scores"] for item in payload["authors"])
     assert adjusted_response.status_code == 200
     assert adjusted_response.json()["effective_weights"]["reviews"] == 10_000
     assert unavailable_day.status_code == 422

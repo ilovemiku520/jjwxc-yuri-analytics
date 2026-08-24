@@ -23,6 +23,7 @@ from pixiv_yuri.jjwxc.database_catalog import (
     DataMode,
     available_snapshot_days,
     load_catalog,
+    load_latest_author_profiles,
     search_catalog,
     search_full_catalog_index,
 )
@@ -34,16 +35,20 @@ from pixiv_yuri.jjwxc.models import (
 )
 from pixiv_yuri.jjwxc.persistence import (
     JjwxcAuthorRecord,
+    JjwxcAuthorSnapshot,
     JjwxcChannelRankingSnapshot,
     JjwxcNovelRecord,
 )
 from pixiv_yuri.jjwxc.ratings import (
+    AUTHOR_DEFAULT_WEIGHTS,
     RATING_METRICS,
+    AuthorRatingMetric,
     RatingGrade,
     RatingMetric,
-    build_author_entities,
+    build_author_profile_entities,
     build_novel_entities,
     evidence_weight_basis_points,
+    score_author_profile_entities,
     score_entities,
 )
 
@@ -137,6 +142,12 @@ class JjwxcAuthorSummary(BaseModel):
     total_review_count: int = Field(ge=0)
     total_favorite_count: int = Field(ge=0)
     total_points: int = Field(ge=0)
+    profile_nonlocked_work_count: int | None = Field(default=None, ge=0)
+    profile_locked_work_count: int | None = Field(default=None, ge=0)
+    profile_author_favorite_count: int | None = Field(default=None, ge=0)
+    profile_total_word_count: int | None = Field(default=None, ge=0)
+    profile_total_points: int | None = Field(default=None, ge=0)
+    profile_observed_at: str | None = None
 
 
 class JjwxcAuthorPage(BaseModel):
@@ -222,6 +233,19 @@ class JjwxcRatingItem(BaseModel):
     component_scores: dict[RatingMetric, int | None]
 
 
+class JjwxcAuthorRatingItem(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    entity_id: str
+    title: str
+    author_display_name: str
+    score_basis_points: int = Field(ge=0, le=10_000)
+    grade: RatingGrade
+    coverage_basis_points: int = Field(ge=0, le=10_000)
+    component_scores: dict[AuthorRatingMetric, int | None]
+    raw_values: dict[AuthorRatingMetric, int | None]
+
+
 class JjwxcRatingResponse(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -233,9 +257,10 @@ class JjwxcRatingResponse(BaseModel):
     selected_day: str
     available_days: tuple[str, ...]
     default_weights: dict[RatingMetric, int]
+    author_default_weights: dict[AuthorRatingMetric, int]
     effective_weights: dict[RatingMetric, int]
     novels: tuple[JjwxcRatingItem, ...]
-    authors: tuple[JjwxcRatingItem, ...]
+    authors: tuple[JjwxcAuthorRatingItem, ...]
 
 
 def register_jjwxc_routes(
@@ -438,12 +463,17 @@ def register_jjwxc_routes(
     @application.get("/api/v1/jjwxc/authors", response_model=JjwxcAuthorPage)
     def authors(sort: AuthorSort = "favorites") -> JjwxcAuthorPage:
         catalog, data_mode = load_catalog(session_factory)
-        summaries = list(_author_summaries(catalog.novels).values())
+        profiles = load_latest_author_profiles(session_factory)
+        summaries = list(_author_summaries(catalog.novels, profiles).values())
         key_by_sort = {
             "favorites": lambda item: item.total_favorite_count,
             "reviews": lambda item: item.total_review_count,
             "points": lambda item: item.total_points,
-            "novels": lambda item: item.novel_count,
+            "novels": lambda item: (
+                item.profile_nonlocked_work_count
+                if item.profile_nonlocked_work_count is not None
+                else item.novel_count
+            ),
         }
         summaries.sort(key=lambda item: (-key_by_sort[sort](item), item.author_id))
         return JjwxcAuthorPage(data_mode=data_mode, sort=sort, items=tuple(summaries))
@@ -451,7 +481,8 @@ def register_jjwxc_routes(
     @application.get("/api/v1/jjwxc/authors/{author_id}", response_model=JjwxcAuthorDetail)
     def author_detail(author_id: str) -> JjwxcAuthorDetail:
         catalog, _ = load_catalog(session_factory)
-        summaries = _author_summaries(catalog.novels)
+        profiles = load_latest_author_profiles(session_factory)
+        summaries = _author_summaries(catalog.novels, profiles)
         author = summaries.get(author_id)
         if author is None:
             raise HTTPException(status_code=404, detail="jjwxc_author_not_found")
@@ -515,6 +546,7 @@ def register_jjwxc_routes(
         if selected_day not in available_days:
             raise HTTPException(status_code=422, detail="jjwxc_rating_day_not_available")
         catalog, data_mode = load_catalog(session_factory, selected_day=selected_day)
+        profiles = load_latest_author_profiles(session_factory, selected_day=selected_day)
         default_weights = evidence_weight_basis_points(catalog.novels)
         supplied: dict[RatingMetric, int | None] = {
             "reviews": reviews,
@@ -533,19 +565,29 @@ def register_jjwxc_routes(
             selected_day=selected_day,
             available_days=available_days,
             default_weights=default_weights,
+            author_default_weights=AUTHOR_DEFAULT_WEIGHTS,
             effective_weights=effective_weights,
             novels=tuple(
                 JjwxcRatingItem.model_validate(item)
                 for item in score_entities(build_novel_entities(catalog.novels), effective_weights)
             ),
             authors=tuple(
-                JjwxcRatingItem.model_validate(item)
-                for item in score_entities(build_author_entities(catalog.novels), effective_weights)
+                JjwxcAuthorRatingItem.model_validate(item)
+                for item in score_author_profile_entities(
+                    build_author_profile_entities(
+                        catalog.novels,
+                        _author_profile_rating_values(profiles),
+                    ),
+                    AUTHOR_DEFAULT_WEIGHTS,
+                )
             ),
         )
 
 
-def _author_summaries(novels: tuple[JjwxcNovel, ...]) -> dict[str, JjwxcAuthorSummary]:
+def _author_summaries(
+    novels: tuple[JjwxcNovel, ...],
+    profiles: dict[str, JjwxcAuthorSnapshot],
+) -> dict[str, JjwxcAuthorSummary]:
     grouped: dict[str, list[JjwxcNovel]] = defaultdict(list)
     for novel in novels:
         grouped[novel.author_id].append(novel)
@@ -558,8 +600,41 @@ def _author_summaries(novels: tuple[JjwxcNovel, ...]) -> dict[str, JjwxcAuthorSu
             total_review_count=sum(item.review_count for item in novels),
             total_favorite_count=sum(item.favorite_count for item in novels),
             total_points=sum(item.points for item in novels),
+            profile_nonlocked_work_count=(
+                profiles[author_id].nonlocked_work_count if author_id in profiles else None
+            ),
+            profile_locked_work_count=(
+                profiles[author_id].locked_work_count if author_id in profiles else None
+            ),
+            profile_author_favorite_count=(
+                profiles[author_id].author_favorite_count if author_id in profiles else None
+            ),
+            profile_total_word_count=(
+                profiles[author_id].total_word_count if author_id in profiles else None
+            ),
+            profile_total_points=(
+                profiles[author_id].total_points if author_id in profiles else None
+            ),
+            profile_observed_at=(
+                profiles[author_id].observed_at.isoformat() if author_id in profiles else None
+            ),
         )
         for author_id, novels in grouped.items()
+    }
+
+
+def _author_profile_rating_values(
+    profiles: dict[str, JjwxcAuthorSnapshot],
+) -> dict[str, dict[AuthorRatingMetric, float | None]]:
+    return {
+        author_id: {
+            "nonlocked_works": float(snapshot.nonlocked_work_count),
+            "author_favorites": float(snapshot.author_favorite_count),
+            "work_favorites": None,
+            "words": float(snapshot.total_word_count),
+            "points": float(snapshot.total_points),
+        }
+        for author_id, snapshot in profiles.items()
     }
 
 

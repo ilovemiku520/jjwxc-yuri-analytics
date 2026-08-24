@@ -20,7 +20,7 @@ from tests.test_g0_governance import valid_approval_payload
 NOW = datetime(2026, 8, 23, tzinfo=UTC)
 
 
-def build_engine_with_version(version: str = "20260824_0013") -> Engine:
+def build_engine_with_version(version: str = "20260824_0014") -> Engine:
     engine = create_engine(
         "sqlite+pysqlite:///:memory:",
         execution_options={"schema_translate_map": {"ingest": None}},

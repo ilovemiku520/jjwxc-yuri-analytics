@@ -10,9 +10,10 @@ import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { formatCount } from "../../lib/format/number";
 import type {
+  JjwxcAuthorRatingMetric,
   JjwxcRatingGrade,
-  JjwxcRatingItem,
   JjwxcRatingMetric,
   JjwxcRatingResponse,
 } from "../../types/api";
@@ -25,12 +26,32 @@ echarts.use([
   CanvasRenderer,
 ]);
 
-const metrics: Array<{ key: JjwxcRatingMetric; label: string }> = [
+type MetricKey = JjwxcRatingMetric | JjwxcAuthorRatingMetric;
+type MetricConfig = { key: MetricKey; label: string };
+type DisplayItem = {
+  entity_id: string;
+  title: string;
+  author_display_name: string;
+  score_basis_points: number;
+  grade: JjwxcRatingGrade;
+  coverage_basis_points: number;
+  component_scores: Partial<Record<MetricKey, number | null>>;
+  raw_values?: Partial<Record<MetricKey, number | null>>;
+};
+
+const novelMetrics: MetricConfig[] = [
   { key: "favorites", label: "收藏" },
   { key: "reviews", label: "书评" },
   { key: "points", label: "积分" },
   { key: "clicks", label: "非 V 章均点击" },
   { key: "words", label: "字数" },
+];
+const authorMetrics: MetricConfig[] = [
+  { key: "nonlocked_works", label: "非锁定作品" },
+  { key: "author_favorites", label: "作者收藏" },
+  { key: "work_favorites", label: "作品总收藏" },
+  { key: "words", label: "写文总字数" },
+  { key: "points", label: "总积分" },
 ];
 
 type EntityKind = "novels" | "authors";
@@ -44,20 +65,30 @@ function gradeFor(score: number): JjwxcRatingGrade {
 }
 
 function normalizeWeights(
-  weights: Record<JjwxcRatingMetric, number>,
-): Record<JjwxcRatingMetric, number> {
-  const total = metrics.reduce((sum, metric) => sum + weights[metric.key], 0);
-  if (total <= 0) return weights;
+  weights: Partial<Record<MetricKey, number>>,
+  metrics: MetricConfig[],
+): Record<MetricKey, number> {
+  const total = metrics.reduce((sum, metric) => sum + (weights[metric.key] ?? 0), 0);
+  if (total <= 0) {
+    return Object.fromEntries(
+      metrics.map((metric) => [metric.key, weights[metric.key] ?? 0]),
+    ) as Record<MetricKey, number>;
+  }
   return Object.fromEntries(
-    metrics.map((metric) => [metric.key, (weights[metric.key] * 10000) / total]),
-  ) as Record<JjwxcRatingMetric, number>;
+    metrics.map((metric) => [
+      metric.key,
+      ((weights[metric.key] ?? 0) * 10000) / total,
+    ]),
+  ) as Record<MetricKey, number>;
 }
 
 function rescore(
-  items: JjwxcRatingItem[],
-  rawWeights: Record<JjwxcRatingMetric, number>,
+  items: DisplayItem[],
+  rawWeights: Partial<Record<MetricKey, number>>,
+  metrics: MetricConfig[],
+  kind: EntityKind,
 ) {
-  const weights = normalizeWeights(rawWeights);
+  const weights = normalizeWeights(rawWeights, metrics);
   return items
     .map((item) => {
       const observed = metrics.filter(
@@ -76,7 +107,9 @@ function rescore(
             0,
           ) / observedWeight
         : 0;
-      const rounded = Math.round(score);
+      const coverageFactor =
+        kind === "authors" ? item.coverage_basis_points / 10000 : 1;
+      const rounded = Math.round(score * coverageFactor);
       return { ...item, score_basis_points: rounded, grade: gradeFor(rounded) };
     })
     .sort(
@@ -86,7 +119,7 @@ function rescore(
     );
 }
 
-function RatingRadar({ item }: { item: JjwxcRatingItem }) {
+function RatingRadar({ item, metrics }: { item: DisplayItem; metrics: MetricConfig[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -126,7 +159,7 @@ function RatingRadar({ item }: { item: JjwxcRatingItem }) {
       observer.disconnect();
       chart.dispose();
     };
-  }, [item]);
+  }, [item, metrics]);
 
   return (
     <div
@@ -141,15 +174,29 @@ function RatingRadar({ item }: { item: JjwxcRatingItem }) {
 export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
   const [kind, setKind] = useState<EntityKind>("novels");
   const [day, setDay] = useState(data.selected_day);
-  const [weights, setWeights] = useState(data.default_weights);
-  const sourceItems = kind === "novels" ? data.novels : data.authors;
-  const ranked = useMemo(() => rescore(sourceItems, weights), [sourceItems, weights]);
+  const [novelWeights, setNovelWeights] = useState<Partial<Record<MetricKey, number>>>(
+    data.default_weights,
+  );
+  const [authorWeights, setAuthorWeights] = useState<Partial<Record<MetricKey, number>>>(
+    data.author_default_weights,
+  );
+  const metrics = kind === "novels" ? novelMetrics : authorMetrics;
+  const weights = kind === "novels" ? novelWeights : authorWeights;
+  const sourceItems: DisplayItem[] = kind === "novels" ? data.novels : data.authors;
+  const ranked = useMemo(
+    () => rescore(sourceItems, weights, metrics, kind),
+    [kind, metrics, sourceItems, weights],
+  );
   const [selectedId, setSelectedId] = useState(ranked[0]?.entity_id ?? "");
   const selected = ranked.find((item) => item.entity_id === selectedId) ?? ranked[0];
-  const normalized = normalizeWeights(weights);
+  const normalized = normalizeWeights(weights, metrics);
 
-  function updateWeight(metric: JjwxcRatingMetric, value: number) {
-    setWeights((current) => ({ ...current, [metric]: value }));
+  function updateWeight(metric: MetricKey, value: number) {
+    if (kind === "novels") {
+      setNovelWeights((current) => ({ ...current, [metric]: value }));
+    } else {
+      setAuthorWeights((current) => ({ ...current, [metric]: value }));
+    }
   }
 
   return (
@@ -192,7 +239,11 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
         <button
           className="reset-weights"
           type="button"
-          onClick={() => setWeights(data.default_weights)}
+          onClick={() =>
+            kind === "novels"
+              ? setNovelWeights(data.default_weights)
+              : setAuthorWeights(data.author_default_weights)
+          }
         >
           恢复数据校准权重
         </button>
@@ -252,7 +303,22 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
                 综合分 {(selected.score_basis_points / 100).toFixed(1)} · {selected.grade} · 数据覆盖 {selected.coverage_basis_points / 100}%
               </p>
             </div>
-            <RatingRadar item={selected} />
+            {kind === "authors" && selected.raw_values ? (
+              <dl className="author-radar-values">
+                {authorMetrics.map((metric) => (
+                  <div key={metric.key}>
+                    <dt>{metric.label}</dt>
+                    <dd>
+                      {selected.raw_values?.[metric.key] === null ||
+                      selected.raw_values?.[metric.key] === undefined
+                        ? "待专栏采集"
+                        : formatCount(selected.raw_values[metric.key] ?? 0)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+            <RatingRadar item={selected} metrics={metrics} />
           </div>
         ) : null}
       </div>

@@ -507,6 +507,12 @@ export interface JjwxcAuthorSummary {
   total_review_count: number;
   total_favorite_count: number;
   total_points: number;
+  profile_nonlocked_work_count: number | null;
+  profile_locked_work_count: number | null;
+  profile_author_favorite_count: number | null;
+  profile_total_word_count: number | null;
+  profile_total_points: number | null;
+  profile_observed_at: string | null;
 }
 
 export interface JjwxcAuthorPage {
@@ -594,6 +600,13 @@ export type JjwxcRatingMetric =
 
 export type JjwxcRatingGrade = "SSS" | "SS" | "S" | "A" | "B";
 
+export type JjwxcAuthorRatingMetric =
+  | "nonlocked_works"
+  | "author_favorites"
+  | "work_favorites"
+  | "words"
+  | "points";
+
 export interface JjwxcRatingItem {
   entity_id: string;
   title: string;
@@ -604,6 +617,17 @@ export interface JjwxcRatingItem {
   component_scores: Record<JjwxcRatingMetric, number | null>;
 }
 
+export interface JjwxcAuthorRatingItem {
+  entity_id: string;
+  title: string;
+  author_display_name: string;
+  score_basis_points: number;
+  grade: JjwxcRatingGrade;
+  coverage_basis_points: number;
+  component_scores: Record<JjwxcAuthorRatingMetric, number | null>;
+  raw_values: Record<JjwxcAuthorRatingMetric, number | null>;
+}
+
 export interface JjwxcRatingResponse {
   data_mode: "synthetic_fixture" | "database_snapshot";
   model_version: "jjwxc-public-performance-v1";
@@ -611,7 +635,8 @@ export interface JjwxcRatingResponse {
   selected_day: string;
   available_days: string[];
   default_weights: Record<JjwxcRatingMetric, number>;
+  author_default_weights: Record<JjwxcAuthorRatingMetric, number>;
   effective_weights: Record<JjwxcRatingMetric, number>;
   novels: JjwxcRatingItem[];
-  authors: JjwxcRatingItem[];
+  authors: JjwxcAuthorRatingItem[];
 }

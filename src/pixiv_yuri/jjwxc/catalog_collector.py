@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -14,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from pixiv_yuri.ingest.models import DiscoveryCheckpoint
@@ -23,16 +24,21 @@ from pixiv_yuri.jjwxc.catalog_parser import (
     JjwxcBookbasePage,
     JjwxcChannelCatalog,
     enrich_candidate_with_chapters,
+    parse_author_profile,
     parse_bookbase_page,
     parse_channel_catalog,
     parse_chapter_directory,
 )
 from pixiv_yuri.jjwxc.html_parser import parse_novel_page
 from pixiv_yuri.jjwxc.persistence import (
+    JjwxcAuthorRecord,
+    JjwxcAuthorSnapshot,
     JjwxcCatalogIndexRecord,
     JjwxcChannelRankingSnapshot,
     JjwxcChapterSnapshot,
     JjwxcDiscoveryRecord,
+    JjwxcNovelRecord,
+    JjwxcNovelSnapshot,
 )
 from pixiv_yuri.jjwxc.snapshot_store import store_novel_snapshot
 from pixiv_yuri.jjwxc.source_cache import JjwxcSourceCache
@@ -59,6 +65,7 @@ def collect_channel_catalog(
     *,
     hydrate_limit: int,
     index_page_limit: int,
+    author_limit: int,
     request_interval_seconds: float,
     cache_dir: Path,
     cache_ttl_seconds: int = 24 * 60 * 60,
@@ -70,6 +77,8 @@ def collect_channel_catalog(
         raise ValueError("hydrate_limit_out_of_range")
     if not 0 <= index_page_limit <= 50:
         raise ValueError("index_page_limit_out_of_range")
+    if not 0 <= author_limit <= 100:
+        raise ValueError("author_limit_out_of_range")
     if request_interval_seconds < 1.0:
         raise ValueError("request_interval_too_short")
     observed_at = now or datetime.now(UTC)
@@ -210,6 +219,20 @@ def collect_channel_catalog(
         .where(JjwxcDiscoveryRecord.next_fetch_at <= observed_at)
         .limit(1)
     )
+    (
+        author_profiles_created,
+        author_profiles_failed,
+        author_network_requests,
+        author_cache_hits,
+    ) = _collect_author_profiles(
+        session,
+        cache=cache,
+        author_limit=author_limit,
+        request_interval_seconds=request_interval_seconds,
+        observed_at=canonical_observed_at,
+    )
+    network_requests += author_network_requests
+    cache_hits += author_cache_hits
     return {
         "status": "completed_with_errors" if failed else "completed",
         "observation_day": local_day.isoformat(),
@@ -226,11 +249,106 @@ def collect_channel_catalog(
         "hydrated_novel_snapshots": hydrated,
         "created_chapter_rows": chapters_created,
         "failed_novels": failed,
+        "author_profiles_created": author_profiles_created,
+        "author_profiles_failed": author_profiles_failed,
         "cache_hits": cache_hits,
         "network_request_count": network_requests,
         "backfill_remaining": pending is not None,
         "raw_payload_location": "private_ttl_cache",
     }
+
+
+def _collect_author_profiles(
+    session: Session,
+    *,
+    cache: JjwxcSourceCache,
+    author_limit: int,
+    request_interval_seconds: float,
+    observed_at: datetime,
+) -> tuple[int, int, int, int]:
+    if author_limit == 0:
+        return (0, 0, 0, 0)
+    latest = (
+        select(
+            JjwxcAuthorSnapshot.author_record_id.label("author_record_id"),
+            func.max(JjwxcAuthorSnapshot.observed_at).label("observed_at"),
+        )
+        .group_by(JjwxcAuthorSnapshot.author_record_id)
+        .subquery()
+    )
+    public_author_ids = (
+        select(JjwxcNovelRecord.author_record_id)
+        .join(
+            JjwxcNovelSnapshot,
+            JjwxcNovelSnapshot.novel_record_id == JjwxcNovelRecord.id,
+        )
+        .where(JjwxcNovelSnapshot.source_mode == "public_candidate")
+        .distinct()
+    )
+    authors = list(
+        session.scalars(
+            select(JjwxcAuthorRecord)
+            .outerjoin(latest, latest.c.author_record_id == JjwxcAuthorRecord.id)
+            .where(
+                JjwxcAuthorRecord.id.in_(public_author_ids),
+                or_(latest.c.observed_at.is_(None), latest.c.observed_at < observed_at),
+            )
+            .order_by(latest.c.observed_at.asc().nullsfirst(), JjwxcAuthorRecord.id)
+            .limit(author_limit)
+        ).all()
+    )
+    created = 0
+    failed = 0
+    network_requests = 0
+    cache_hits = 0
+    for author in authors:
+        url = f"https://www.jjwxc.net/oneauthor.php?authorid={author.author_id}"
+        try:
+            time.sleep(request_interval_seconds)
+            fetched = cache.fetch(
+                url,
+                allowed_hosts=frozenset({"www.jjwxc.net"}),
+                expected_content_types=("text/html",),
+                max_bytes=2_000_000,
+            )
+            network_requests += int(not fetched.cache_hit)
+            cache_hits += int(fetched.cache_hit)
+            candidate = parse_author_profile(
+                fetched.payload,
+                author_id=author.author_id,
+                observed_at=observed_at,
+            )
+            digest = hashlib.sha256(candidate.model_dump_json().encode()).hexdigest()
+            existing = session.scalar(
+                select(JjwxcAuthorSnapshot.id).where(
+                    or_(
+                        JjwxcAuthorSnapshot.candidate_sha256 == digest,
+                        (
+                            JjwxcAuthorSnapshot.author_record_id == author.id
+                        )
+                        & (JjwxcAuthorSnapshot.observed_at == observed_at),
+                    )
+                )
+            )
+            if existing is None:
+                session.add(
+                    JjwxcAuthorSnapshot(
+                        author_record_id=author.id,
+                        observed_at=observed_at,
+                        author_favorite_count=candidate.author_favorite_count,
+                        nonlocked_work_count=candidate.nonlocked_work_count,
+                        locked_work_count=candidate.locked_work_count,
+                        total_word_count=candidate.total_word_count,
+                        total_points=candidate.total_points,
+                        candidate_sha256=digest,
+                    )
+                )
+                created += 1
+            session.commit()
+        except (RuntimeError, ValueError, urllib.error.URLError, TimeoutError):
+            session.rollback()
+            failed += 1
+    return created, failed, network_requests, cache_hits
 
 
 def _scan_bookbase_pages(
@@ -495,6 +613,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--hydrate-limit", type=int, default=25)
     parser.add_argument("--index-pages", type=int, default=5)
+    parser.add_argument("--author-limit", type=int, default=5)
     parser.add_argument("--request-interval-seconds", type=float, default=2.0)
     parser.add_argument("--cache-ttl-hours", type=int, default=24)
     parser.add_argument("--cache-dir", default=os.getenv("JJYURI_CACHE_DIR", "var/cache/jjwxc"))
@@ -510,7 +629,10 @@ def main(argv: list[str] | None = None) -> int:
                     "channel_url": CHANNEL_URL,
                     "hydrate_limit": hydrate_limit,
                     "index_pages": args.index_pages,
-                    "maximum_planned_requests": 1 + args.index_pages + hydrate_limit * 2,
+                    "author_limit": args.author_limit,
+                    "maximum_planned_requests": (
+                        1 + args.index_pages + hydrate_limit * 2 + args.author_limit
+                    ),
                     "ranking_keys": CHANNEL_RANKING_KEYS,
                     "cache_dir": args.cache_dir,
                 },
@@ -529,6 +651,7 @@ def main(argv: list[str] | None = None) -> int:
                 session,
                 hydrate_limit=hydrate_limit,
                 index_page_limit=args.index_pages,
+                author_limit=args.author_limit,
                 request_interval_seconds=args.request_interval_seconds,
                 cache_dir=Path(args.cache_dir),
                 cache_ttl_seconds=args.cache_ttl_hours * 60 * 60,

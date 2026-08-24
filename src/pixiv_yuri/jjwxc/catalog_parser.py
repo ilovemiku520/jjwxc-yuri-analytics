@@ -5,6 +5,7 @@ from __future__ import annotations
 import html as html_module
 import json
 import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from html.parser import HTMLParser
 from zoneinfo import ZoneInfo
@@ -56,6 +57,124 @@ class JjwxcBookbasePage(BaseModel):
     current_page: int = Field(ge=1, le=100_000)
     total_pages: int = Field(ge=1, le=100_000)
     entries: tuple[JjwxcBookbaseEntry, ...] = Field(min_length=1, max_length=200)
+
+
+class JjwxcAuthorProfileCandidate(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    author_id: str = Field(pattern=r"^[1-9][0-9]{0,11}$")
+    author_favorite_count: int = Field(ge=0)
+    nonlocked_work_count: int = Field(ge=0, le=10_000)
+    locked_work_count: int = Field(ge=0, le=10_000)
+    total_word_count: int = Field(ge=0)
+    total_points: int = Field(ge=0)
+    observed_at: datetime
+    source_url: str = Field(
+        pattern=r"^https://www\.jjwxc\.net/oneauthor\.php\?authorid=[1-9][0-9]{0,11}$"
+    )
+
+
+@dataclass(slots=True)
+class _AuthorWorkRow:
+    cell_depth: int = 0
+    cell_parts: list[str] = field(default_factory=list)
+    cells: list[str] = field(default_factory=list)
+    novel_ids: list[str] = field(default_factory=list)
+    locked: bool = False
+
+
+class _AuthorProfileParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[_AuthorWorkRow] = []
+        self._row_stack: list[_AuthorWorkRow] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {key: value or "" for key, value in attrs}
+        if tag == "tr":
+            self._row_stack.append(_AuthorWorkRow())
+            return
+        if not self._row_stack:
+            return
+        if tag == "td":
+            for row in self._row_stack:
+                row.cell_depth += 1
+        elif tag == "a":
+            href = values.get("href", "")
+            novel = re.search(r"onebook\.php\?novelid=([1-9][0-9]{0,11})", href)
+            if novel is not None:
+                for row in self._row_stack:
+                    if row.cell_depth > 0 and novel.group(1) not in row.novel_ids:
+                        row.novel_ids.append(novel.group(1))
+            if "锁定" in values.get("rel", ""):
+                for row in self._row_stack:
+                    row.locked = True
+
+    def handle_data(self, data: str) -> None:
+        if not self._row_stack:
+            return
+        for row in self._row_stack:
+            if row.cell_depth > 0:
+                row.cell_parts.append(data)
+            if "[锁]" in data or "本文章由作者自行锁定" in data:
+                row.locked = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if not self._row_stack:
+            return
+        if tag == "td":
+            for row in self._row_stack:
+                if row.cell_depth <= 0:
+                    continue
+                row.cell_depth -= 1
+                if row.cell_depth == 0:
+                    row.cells.append(" ".join("".join(row.cell_parts).split()))
+                    row.cell_parts = []
+        elif tag == "tr":
+            row = self._row_stack.pop()
+            if row.novel_ids and len(row.cells) >= 5:
+                self.rows.append(row)
+
+
+def parse_author_profile(
+    payload: bytes,
+    *,
+    author_id: str,
+    observed_at: datetime,
+) -> JjwxcAuthorProfileCandidate:
+    """Extract public author aggregates without profile prose or work titles."""
+    source = decode_jjwxc_html(payload)
+    favorite = re.search(r"被收藏数[：:]\s*([0-9,]+)", source)
+    if favorite is None:
+        raise JjwxcParseError("author_favorite_count_missing")
+    parser = _AuthorProfileParser()
+    parser.feed(source)
+    parser.close()
+    works: dict[str, tuple[bool, int, int]] = {}
+    for row in parser.rows:
+        novel_id = row.novel_ids[0]
+        word_count = _optional_integer(row.cells[3])
+        points = _optional_integer(row.cells[4])
+        if word_count is None or points is None:
+            continue
+        current = works.get(novel_id)
+        candidate = (row.locked, word_count, points)
+        if current is not None and current != candidate:
+            raise JjwxcParseError("author_work_row_conflict")
+        works[novel_id] = candidate
+    if len(works) > 10_000:
+        raise JjwxcParseError("author_work_count_outside_boundary")
+    nonlocked = [item for item in works.values() if not item[0]]
+    return JjwxcAuthorProfileCandidate(
+        author_id=author_id,
+        author_favorite_count=int(favorite.group(1).replace(",", "")),
+        nonlocked_work_count=len(nonlocked),
+        locked_work_count=len(works) - len(nonlocked),
+        total_word_count=sum(item[1] for item in nonlocked),
+        total_points=sum(item[2] for item in nonlocked),
+        observed_at=observed_at,
+        source_url=f"https://www.jjwxc.net/oneauthor.php?authorid={author_id}",
+    )
 
 
 class _ChannelParser(HTMLParser):

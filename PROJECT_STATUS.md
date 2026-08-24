@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 ## Current source pivot — JJWXC yuri novels
 
@@ -12,23 +12,23 @@ Pixiv-specific acquisition is now legacy and is not part of the active product p
 |JJWXC scope|Estimated completion|Status|
 |-|-:|-|
 |Public-page feasibility and field review|100%|Four unauthenticated endpoints tested; terms and robots recorded|
-|JJWXC models, parser and bounded collector|98%|Public ranking parser, top-10 detail hydration, nullable click metric and minimized synopsis features implemented|
-|JJWXC read API|98%|Database-backed catalog, timeline, descriptive statistics, correlation and adjustable rating endpoints implemented|
-|Interactive JJWXC website|98%|Dynamic axes, matrix, robust summaries, SSS–B ranking, adjustable weights and radar charts implemented|
-|Canonical PostgreSQL snapshots|95%|Migration 0011 deployed; real and synthetic source modes are isolated; one real daily snapshot stored|
+|JJWXC models, parser and bounded collector|99%|Ranking, work detail, chapter clicks and author-profile aggregates are implemented with bounded cache-aware collection|
+|JJWXC read API|99%|Database-backed catalog, timeline, descriptive statistics, correlation, search and separate work/author rating endpoints implemented|
+|Interactive JJWXC website|99%|Dynamic axes, matrix, robust summaries, adjustable ratings and five-metric author radar charts implemented|
+|Canonical PostgreSQL snapshots|97%|Migration 0014 deployed; real and synthetic sources are isolated; 59 real work snapshots and 10 real author profiles are stored|
 |Scheduled cloud collection|85%|Daily job and Railway cron configuration are ready; remote project activation and second-day verification remain|
 |Public cloud release|65%|Production containers and deployment-as-code are ready; Git remote, cloud account binding, domain and monitoring remain|
-|New JJWXC roadmap overall|Approximately 86%|Local production stack and first real sample work; durable remote publication and multi-day history remain|
+|New JJWXC roadmap overall|Approximately 91%|Local production stack, indexed search and real author/work samples work; durable remote publication and deeper backfill remain|
 
 Current JJWXC API evidence is exported separately at `contracts/openapi-jjwxc-v1.json` and
-`var/reports/jjwxc_openapi_contract.json`: 34 GET-only paths, no mutation route and no prohibited
-response field. The JJWXC contract SHA-256 is
-`8880651d99cf3371c9b30d1aecf812f7347619d6d117e4c72c816d314c2410fe`.
+`var/reports/jjwxc_openapi_contract.json`: 36 GET-only paths, no mutation route and no prohibited
+response field.
 The earlier 25-path Phase 2/5 reports remain immutable historical evidence rather than being
 silently overwritten after the source pivot.
 
-Docker PostgreSQL is now at migration `20260823_0011`. It contains separate minimized
-`jjwxc_authors`, `jjwxc_novels`, and append-only `jjwxc_novel_snapshots` tables. The store is
+Docker PostgreSQL is now at migration `20260824_0014`. It contains separate minimized
+`jjwxc_authors`, `jjwxc_novels`, append-only `jjwxc_novel_snapshots`, and immutable
+`jjwxc_author_snapshots` tables. The store is
 idempotent by minimized-candidate SHA-256 and rejects conflicting values for the same novel/time;
 no synopsis text, source URL, HTML, chapter, comment, or credential column exists.
 The database also has `jjwxc_ranking_snapshots`, unique by ranking/day/novel and ranking/day/position.
@@ -36,11 +36,12 @@ The first bounded real run stored 200 ranking rows from one public ranking reque
 top 10 public novel summaries. API projections exclude all synthetic Fixture rows whenever real
 `public_candidate` snapshots exist, so demonstration and real observations cannot be blended.
 
-The deployed website currently reads 10 real novels and 10 real authors from the 2026-08-23
-snapshot. The data-calibrated default rating weights are reviews 32.73%, favorites 28.58%, points
-20.32%, clicks 10.33% and words 8.04%. Click coverage is currently 0%, remains missing rather than
-being scored as zero, and the other observed dimensions are re-normalized. The rating is explicitly
-cohort-relative public-data performance, not literary quality.
+The deployed website currently reads 49 detailed real novels and 49 related authors from the latest
+snapshot. Ten authors have real public profile aggregates covering nonlocked works, author
+favorites, observed-work favorites, nonlocked-work words and nonlocked-work points. Locked works
+are excluded from the author work/word/point totals. Incomplete profiles are labeled with their
+coverage and receive a matching score penalty rather than being treated as complete. The rating is
+explicitly cohort-relative public-data performance, not literary quality.
 
 The former 98% figure below describes the completed Pixiv-oriented baseline, not the new
 JJWXC product roadmap.

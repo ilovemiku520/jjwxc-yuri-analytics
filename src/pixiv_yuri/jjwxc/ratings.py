@@ -12,6 +12,13 @@ from pixiv_yuri.jjwxc.analytics import NOVEL_METRICS, correlation_matrix, metric
 from pixiv_yuri.jjwxc.models import JjwxcNovel
 
 RatingMetric = Literal["reviews", "favorites", "points", "words", "clicks"]
+AuthorRatingMetric = Literal[
+    "nonlocked_works",
+    "author_favorites",
+    "work_favorites",
+    "words",
+    "points",
+]
 RatingGrade = Literal["SSS", "SS", "S", "A", "B"]
 
 RATING_METRICS: tuple[RatingMetric, ...] = (
@@ -21,6 +28,20 @@ RATING_METRICS: tuple[RatingMetric, ...] = (
     "words",
     "clicks",
 )
+AUTHOR_RATING_METRICS: tuple[AuthorRatingMetric, ...] = (
+    "nonlocked_works",
+    "author_favorites",
+    "work_favorites",
+    "words",
+    "points",
+)
+AUTHOR_DEFAULT_WEIGHTS: dict[AuthorRatingMetric, int] = {
+    "nonlocked_works": 1_000,
+    "author_favorites": 2_500,
+    "work_favorites": 2_500,
+    "words": 1_500,
+    "points": 2_500,
+}
 
 _ATTRIBUTES: dict[RatingMetric, str] = {
     "reviews": "review_count",
@@ -48,6 +69,14 @@ class RatingEntity:
     title: str
     author_display_name: str
     values: dict[RatingMetric, float | None]
+
+
+@dataclass(frozen=True, slots=True)
+class AuthorRatingEntity:
+    entity_id: str
+    title: str
+    author_display_name: str
+    values: dict[AuthorRatingMetric, float | None]
 
 
 def evidence_weight_basis_points(novels: tuple[JjwxcNovel, ...]) -> dict[RatingMetric, int]:
@@ -130,6 +159,33 @@ def build_author_entities(novels: tuple[JjwxcNovel, ...]) -> tuple[RatingEntity,
     return tuple(entities)
 
 
+def build_author_profile_entities(
+    novels: tuple[JjwxcNovel, ...],
+    profiles: dict[str, dict[AuthorRatingMetric, float | None]],
+) -> tuple[AuthorRatingEntity, ...]:
+    grouped: dict[str, list[JjwxcNovel]] = defaultdict(list)
+    for novel in novels:
+        grouped[novel.author_id].append(novel)
+    entities: list[AuthorRatingEntity] = []
+    for author_id, works in grouped.items():
+        profile = profiles.get(author_id, {})
+        entities.append(
+            AuthorRatingEntity(
+                entity_id=author_id,
+                title=works[0].author_display_name,
+                author_display_name=works[0].author_display_name,
+                values={
+                    "nonlocked_works": profile.get("nonlocked_works"),
+                    "author_favorites": profile.get("author_favorites"),
+                    "work_favorites": float(sum(item.favorite_count for item in works)),
+                    "words": profile.get("words"),
+                    "points": profile.get("points"),
+                },
+            )
+        )
+    return tuple(entities)
+
+
 def score_entities(
     entities: tuple[RatingEntity, ...], weights: dict[RatingMetric, int]
 ) -> tuple[dict[str, object], ...]:
@@ -194,6 +250,76 @@ def score_entities(
     )
 
 
+def score_author_profile_entities(
+    entities: tuple[AuthorRatingEntity, ...],
+    weights: dict[AuthorRatingMetric, int],
+) -> tuple[dict[str, object], ...]:
+    normalized_weights = _normalized_author_basis_points(
+        {metric: max(0.0, float(weights.get(metric, 0))) for metric in AUTHOR_RATING_METRICS}
+    )
+    component_scores = {
+        metric: _percentile_scores(
+            {
+                entity.entity_id: value
+                for entity in entities
+                if (value := entity.values[metric]) is not None
+            }
+        )
+        for metric in AUTHOR_RATING_METRICS
+    }
+    rows: list[dict[str, object]] = []
+    for entity in entities:
+        available = [
+            metric
+            for metric in AUTHOR_RATING_METRICS
+            if entity.values[metric] is not None and normalized_weights[metric] > 0
+        ]
+        observed_weight = sum(normalized_weights[metric] for metric in available)
+        observed_score = (
+            sum(
+                component_scores[metric][entity.entity_id] * normalized_weights[metric]
+                for metric in available
+            )
+            / observed_weight
+            if observed_weight
+            else 0.0
+        )
+        coverage = len(available) / len(AUTHOR_RATING_METRICS)
+        score = observed_score * coverage
+        score_basis_points = round(score * 100)
+        rows.append(
+            {
+                "entity_id": entity.entity_id,
+                "title": entity.title,
+                "author_display_name": entity.author_display_name,
+                "score_basis_points": score_basis_points,
+                "grade": grade_for_score(score_basis_points),
+                "coverage_basis_points": round(coverage * 10_000),
+                "component_scores": {
+                    metric: (
+                        round(component_scores[metric][entity.entity_id] * 100)
+                        if entity.values[metric] is not None
+                        else None
+                    )
+                    for metric in AUTHOR_RATING_METRICS
+                },
+                "raw_values": {
+                    metric: _rounded_optional(entity.values[metric])
+                    for metric in AUTHOR_RATING_METRICS
+                },
+            }
+        )
+    return tuple(
+        sorted(
+            rows,
+            key=lambda row: (
+                -cast(int, row["score_basis_points"]),
+                cast(str, row["entity_id"]),
+            ),
+        )
+    )
+
+
 def grade_for_score(score_basis_points: int) -> RatingGrade:
     if score_basis_points >= 9_000:
         return "SSS"
@@ -220,6 +346,10 @@ def _percentile_scores(values: dict[str, float]) -> dict[str, float]:
     return scores
 
 
+def _rounded_optional(value: float | None) -> int | None:
+    return round(value) if value is not None else None
+
+
 def _normalized_basis_points(values: dict[RatingMetric, float]) -> dict[RatingMetric, int]:
     total = sum(values.values())
     if total <= 0:
@@ -229,6 +359,24 @@ def _normalized_basis_points(values: dict[RatingMetric, float]) -> dict[RatingMe
     remainder = 10_000 - sum(rounded.values())
     for metric in sorted(
         RATING_METRICS,
+        key=lambda item: (exact[item] - rounded[item], item),
+        reverse=True,
+    )[:remainder]:
+        rounded[metric] += 1
+    return rounded
+
+
+def _normalized_author_basis_points(
+    values: dict[AuthorRatingMetric, float],
+) -> dict[AuthorRatingMetric, int]:
+    total = sum(values.values())
+    if total <= 0:
+        raise ValueError("author rating weights must include at least one positive value")
+    exact = {metric: values[metric] * 10_000 / total for metric in AUTHOR_RATING_METRICS}
+    rounded = {metric: int(exact[metric]) for metric in AUTHOR_RATING_METRICS}
+    remainder = 10_000 - sum(rounded.values())
+    for metric in sorted(
+        AUTHOR_RATING_METRICS,
         key=lambda item: (exact[item] - rounded[item], item),
         reverse=True,
     )[:remainder]:

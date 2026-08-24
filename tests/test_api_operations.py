@@ -202,7 +202,7 @@ def test_phase2_exit_review_passes_private_boundary_and_blocks_publication(
         "api.json": api_report,
         "postgres.json": {
             "status": "passed",
-            "migration_version": "20260824_0013",
+            "migration_version": "20260824_0014",
             "catalog_read_indexes": 5,
         },
         "openapi.json": {
@@ -297,7 +297,7 @@ def test_phase2_exit_review_fails_when_operational_evidence_is_missing(
             "postgres.json",
             {
                 "status": "passed",
-                "migration_version": "20260824_0013",
+                "migration_version": "20260824_0014",
                 "catalog_read_indexes": 5,
             },
         ),

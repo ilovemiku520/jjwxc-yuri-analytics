@@ -14,6 +14,7 @@ from pixiv_yuri.jjwxc.demo import JjwxcDemoCatalog, load_demo_catalog
 from pixiv_yuri.jjwxc.models import JjwxcCatalogSearchItem, JjwxcNovel, JjwxcTrendPoint
 from pixiv_yuri.jjwxc.persistence import (
     JjwxcAuthorRecord,
+    JjwxcAuthorSnapshot,
     JjwxcCatalogIndexRecord,
     JjwxcNovelRecord,
     JjwxcNovelSnapshot,
@@ -87,6 +88,37 @@ def available_snapshot_days(factory: sessionmaker[Session] | None) -> tuple[str,
     return tuple(
         sorted({item.astimezone(_SHANGHAI).date().isoformat() for item in observed})
     )
+
+
+def load_latest_author_profiles(
+    factory: sessionmaker[Session] | None,
+    *,
+    selected_day: str | None = None,
+) -> dict[str, JjwxcAuthorSnapshot]:
+    if factory is None:
+        return {}
+    with factory() as session:
+        rows = list(
+            session.execute(
+                select(JjwxcAuthorSnapshot, JjwxcAuthorRecord)
+                .join(
+                    JjwxcAuthorRecord,
+                    JjwxcAuthorRecord.id == JjwxcAuthorSnapshot.author_record_id,
+                )
+                .order_by(JjwxcAuthorSnapshot.observed_at.desc())
+            )
+            .tuples()
+            .all()
+        )
+    latest: dict[str, JjwxcAuthorSnapshot] = {}
+    for snapshot, author in rows:
+        if (
+            selected_day is not None
+            and snapshot.observed_at.astimezone(_SHANGHAI).date().isoformat() != selected_day
+        ):
+            continue
+        latest.setdefault(author.author_id, snapshot)
+    return latest
 
 
 def search_catalog(

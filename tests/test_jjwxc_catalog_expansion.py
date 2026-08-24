@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from pixiv_yuri.jjwxc.catalog_parser import (
     enrich_candidate_with_chapters,
+    parse_author_profile,
     parse_bookbase_page,
     parse_channel_catalog,
     parse_chapter_click_payload,
@@ -61,6 +62,29 @@ def test_bookbase_parser_extracts_minimal_search_index_without_synopsis() -> Non
     assert page.entries[0].word_count == 123_456
     assert page.entries[0].points == 8_765_432
     assert "不能入库" not in page.entries[0].model_dump_json()
+
+
+def test_author_profile_parser_excludes_locked_works_and_profile_prose() -> None:
+    payload = """
+    <meta charset="gb18030"><div>被收藏数：12,345</div><p>不可保存的作者简介</p>
+    <table><tr><td><table><tr><td><a href="onebook.php?novelid=81">作品甲</a></td></tr></table></td>
+      <td>原创-百合</td><td>连载</td><td>100,000</td><td>8,000,000</td><td>2026</td></tr>
+    <tr><td><a href="onebook.php?novelid=82" rel="本文章由作者自行锁定！">作*[锁]</a></td>
+      <td>随笔</td><td>完结</td><td>50,000</td><td>2,000,000</td><td>2020</td></tr></table>
+    """.encode("gb18030")
+
+    profile = parse_author_profile(
+        payload,
+        author_id="71",
+        observed_at=datetime(2026, 8, 24, tzinfo=UTC),
+    )
+
+    assert profile.author_favorite_count == 12_345
+    assert profile.nonlocked_work_count == 1
+    assert profile.locked_work_count == 1
+    assert profile.total_word_count == 100_000
+    assert profile.total_points == 8_000_000
+    assert "作者简介" not in profile.model_dump_json()
 
 
 def test_chapter_parser_keeps_clicks_and_vip_boundary_without_prose() -> None:

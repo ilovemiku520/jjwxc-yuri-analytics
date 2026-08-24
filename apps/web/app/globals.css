@@ -2164,6 +2164,32 @@ a {
   height: 330px;
 }
 
+.author-radar-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0.9rem 0 0;
+}
+
+.author-radar-values div {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.author-radar-values dt {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.author-radar-values dd {
+  margin: 0.18rem 0 0;
+  color: var(--mint);
+  font-variant-numeric: tabular-nums;
+  font-weight: 680;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

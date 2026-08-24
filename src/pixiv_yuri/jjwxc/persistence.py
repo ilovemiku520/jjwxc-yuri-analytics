@@ -46,6 +46,47 @@ class JjwxcAuthorRecord(Base):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class JjwxcAuthorSnapshot(Base):
+    """Immutable public author-column aggregates without biography or prose."""
+
+    __tablename__ = "jjwxc_author_snapshots"
+    __table_args__ = (
+        CheckConstraint(
+            "author_favorite_count >= 0 AND nonlocked_work_count >= 0 "
+            "AND locked_work_count >= 0 AND total_word_count >= 0 AND total_points >= 0",
+            name="nonnegative_jjwxc_author_snapshot_metrics",
+        ),
+        CheckConstraint(
+            "length(candidate_sha256) = 64",
+            name="jjwxc_author_candidate_sha256_length",
+        ),
+        Index("ix_jjwxc_author_snapshots_author_time", "author_record_id", "observed_at"),
+        Index(
+            "uq_jjwxc_author_snapshots_author_time",
+            "author_record_id",
+            "observed_at",
+            unique=True,
+        ),
+        Index("uq_jjwxc_author_snapshots_candidate", "candidate_sha256", unique=True),
+        {"schema": INGEST_SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(PRIMARY_KEY_TYPE, primary_key=True, autoincrement=True)
+    author_record_id: Mapped[int] = mapped_column(
+        ForeignKey(f"{INGEST_SCHEMA}.jjwxc_authors.id", ondelete="CASCADE"), nullable=False
+    )
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    author_favorite_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    nonlocked_work_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    locked_work_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_word_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    total_points: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    candidate_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
 class JjwxcNovelRecord(Base):
     """Current minimized novel projection updated only by newer snapshots."""
 
