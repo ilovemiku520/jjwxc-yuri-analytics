@@ -93,24 +93,44 @@ export default async function NovelsPage({
         </p>
       </form>
 
+      {query ? (
+        <section className="catalog-search-results" aria-labelledby="search-results-title">
+          <div className="catalog-results-heading">
+            <div>
+              <p className="eyebrow">Searchable catalog</p>
+              <h2 id="search-results-title">搜索结果</h2>
+            </div>
+            <Link href="/novels">清除搜索</Link>
+          </div>
+          {searchCatalog ? (
+            <CatalogSearchResults items={searchCatalog.items} />
+          ) : (
+            <section className="state-panel">
+              <p>索引搜索服务暂不可用。</p>
+            </section>
+          )}
+        </section>
+      ) : null}
+
       <ChannelRankings channelGold={gold} newcomer={newcomer} />
 
-      <section className="catalog-results-heading">
-        <div>
-          <p className="eyebrow">Searchable catalog</p>
-          <h2>{query ? "搜索结果" : "作品索引"}</h2>
-        </div>
-        {query ? <Link href="/novels">清除搜索</Link> : null}
-      </section>
-      {query && searchCatalog ? (
-        <CatalogSearchResults items={searchCatalog.items} />
-      ) : !query && catalog ? (
-        <NovelExplorer novels={catalog.items} />
-      ) : (
-        <section className="state-panel">
-          <p>分析数据服务暂不可用。</p>
-        </section>
-      )}
+      {!query ? (
+        <>
+          <section className="catalog-results-heading">
+            <div>
+              <p className="eyebrow">Searchable catalog</p>
+              <h2>作品索引</h2>
+            </div>
+          </section>
+          {catalog ? (
+            <NovelExplorer novels={catalog.items} />
+          ) : (
+            <section className="state-panel">
+              <p>分析数据服务暂不可用。</p>
+            </section>
+          )}
+        </>
+      ) : null}
     </main>
   );
 }

@@ -243,21 +243,34 @@ function CorrelationHeatmap({
         splitArea: { show: true },
       },
       visualMap: {
+        show: false,
         min: -1,
         max: 1,
+        dimension: 2,
         calculable: false,
-        orient: "horizontal",
-        left: "center",
-        bottom: 4,
-        textStyle: { color: "#b9adb6" },
-        inRange: { color: ["#6c79c8", "#25202a", "#f18bb8"] },
+        inRange: {
+          color: [
+            "#294a8a",
+            "#3a7bbf",
+            "#66c2c9",
+            "#e8ece9",
+            "#f4d35e",
+            "#f28e5b",
+            "#b3263d",
+          ],
+        },
       },
       series: [
         {
           name: "Pearson 相关系数",
           type: "heatmap",
           data,
-          label: { show: true, color: "#f7f3f6" },
+          label: {
+            show: true,
+            color: "#fffafc",
+            textBorderColor: "rgba(19, 13, 18, 0.72)",
+            textBorderWidth: 3,
+          },
           emphasis: {
             itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,.45)" },
           },
@@ -273,12 +286,24 @@ function CorrelationHeatmap({
   }, [cells, metrics]);
 
   return (
-    <div
-      className="analysis-chart correlation-chart"
-      ref={containerRef}
-      role="img"
-      aria-label="作品指标 Pearson 相关矩阵热力图"
-    />
+    <div className="correlation-figure">
+      <div
+        className="analysis-chart correlation-chart"
+        ref={containerRef}
+        role="img"
+        aria-label="作品指标 Pearson 相关矩阵热力图"
+      />
+      <div className="correlation-scale" aria-label="相关系数颜色图例：蓝色为负相关，浅灰为弱相关，黄色至红色为正相关">
+        <span>强负相关</span>
+        <i aria-hidden="true" />
+        <span>强正相关</span>
+      </div>
+      <div className="correlation-scale-values">
+        <span>−1.0</span>
+        <span>弱相关 · 0</span>
+        <span>+1.0</span>
+      </div>
+    </div>
   );
 }
 
@@ -390,7 +415,8 @@ export function MultivariateExplorer({
           metrics={matrixSelection}
         />
         <p className="analysis-note">
-          横轴、纵轴和颜色共三维；缺失点击量时按每对变量的共同有效样本计算，悬停可查看样本数。
+          横轴、纵轴和颜色共三维；蓝色表示负相关，浅灰表示弱相关，黄色至红色表示正相关。
+          缺失点击量时按每对变量的共同有效样本计算，悬停可查看样本数。
         </p>
       </section>
 
