@@ -258,11 +258,11 @@ services:
     entrypoint: ["jjyuri-jjwxc-catalog"]
     command:
       - --index-pages
-      - ${JJYURI_INDEX_PAGES:-5}
+      - ${JJYURI_INDEX_PAGES:-10}
       - --hydrate-limit
       - ${JJYURI_HYDRATE_LIMIT:-25}
       - --author-limit
-      - ${JJYURI_AUTHOR_LIMIT:-5}
+      - ${JJYURI_AUTHOR_LIMIT:-10}
       - --request-interval-seconds
       - ${JJYURI_REQUEST_INTERVAL_SECONDS:-2}
       - --cache-dir

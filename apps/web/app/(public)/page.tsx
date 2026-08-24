@@ -11,20 +11,42 @@ import type {
 } from "../../types/api";
 
 export const dynamic = "force-dynamic";
+const DASHBOARD_RANKING_OPTIONS = [10, 20, 50] as const;
+const DASHBOARD_RANKING_DEFAULT = DASHBOARD_RANKING_OPTIONS[1];
+type SearchParams = Promise<{ top?: string | string[] }>;
 
-async function loadOverview() {
+function firstValue(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+}
+
+function parseDashboardLimit(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  return DASHBOARD_RANKING_OPTIONS.includes(parsed as (typeof DASHBOARD_RANKING_OPTIONS)[number])
+    ? parsed
+    : DASHBOARD_RANKING_DEFAULT;
+}
+
+async function loadOverview(rankingLimit: number) {
   const [overview, ranking, trends] = await Promise.all([
     fetchApi<JjwxcOverview>("/api/v1/jjwxc/overview"),
-    fetchApi<JjwxcNovelPage>("/api/v1/jjwxc/novels?sort=favorites&limit=5"),
+    fetchApi<JjwxcNovelPage>(
+      `/api/v1/jjwxc/novels?sort=favorites&limit=${rankingLimit}`,
+    ),
     fetchApi<JjwxcTrendResponse>("/api/v1/jjwxc/trends"),
   ]);
   return { overview, ranking, trends };
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const rankingLimit =
+    parseDashboardLimit(firstValue((await searchParams).top));
   let data: Awaited<ReturnType<typeof loadOverview>> | null = null;
   try {
-    data = await loadOverview();
+    data = await loadOverview(rankingLimit);
   } catch {
     // A stopped private API renders an explicit local-only fallback.
   }
@@ -80,6 +102,23 @@ export default async function DashboardPage() {
                   打开交互分析 →
                 </Link>
               </div>
+              <form action="/" className="cohort-search" method="get">
+                <label htmlFor="dashboard-ranking-top">展示条数</label>
+                <div>
+                  <select
+                    id="dashboard-ranking-top"
+                    name="top"
+                    defaultValue={String(rankingLimit)}
+                  >
+                    {DASHBOARD_RANKING_OPTIONS.map((option) => (
+                      <option key={option} value={String(option)}>
+                        前 {option} 部
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit">更新</button>
+                </div>
+              </form>
               <ol className="ranking-list">
                 {data.ranking.items.map((novel, index) => (
                   <li key={novel.novel_id}>
@@ -103,6 +142,13 @@ export default async function DashboardPage() {
                   </li>
                 ))}
               </ol>
+              <p className="analysis-note">
+                当前展示前 {Math.min(data.ranking.items.length, rankingLimit)} 部，全部样本{" "}
+                {formatCount(data.overview.novel_count)} 部
+              </p>
+              <Link className="muted-link" href="/novels">
+                查看全部榜单 →
+              </Link>
             </article>
             <aside className="state-panel">
               <div className="panel-heading">
