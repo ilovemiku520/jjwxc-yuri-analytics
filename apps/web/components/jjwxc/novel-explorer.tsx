@@ -133,7 +133,7 @@ export function NovelExplorer({ novels }: { novels: JjwxcNovel[] }) {
                 <dt>V 章均点击</dt>
                 <dd>
                   {novel.average_v_chapter_click_count === null
-                    ? "当前不可见"
+                    ? "需作者授权"
                     : formatCount(novel.average_v_chapter_click_count)}
                 </dd>
               </div>
@@ -141,7 +141,7 @@ export function NovelExplorer({ novels }: { novels: JjwxcNovel[] }) {
                 <dt>V/非 V 留存比（代理）</dt>
                 <dd>
                   {novel.v_to_non_v_click_retention_basis_points === null
-                    ? "缺少共同值"
+                    ? "缺少作者授权 V 点击"
                     : `${(
                         novel.v_to_non_v_click_retention_basis_points / 100
                       ).toFixed(1)}%`}

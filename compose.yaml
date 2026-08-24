@@ -81,6 +81,30 @@ services:
     networks:
       - offline-db
 
+  author-v-worker:
+    image: yuri-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PYURI_PYTHON_BASE_IMAGE: ${PYURI_PYTHON_BASE_IMAGE:-python:3.12-slim}
+    profiles: ["api"]
+    entrypoint: ["python", "-m", "pixiv_yuri.jjwxc.author_v_worker"]
+    environment:
+      PYURI_ENABLE_NETWORK: "false"
+      PYURI_DATABASE_URL: >-
+        postgresql+psycopg://${PYURI_POSTGRES_USER:-pyuri}:${PYURI_POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${PYURI_POSTGRES_DB:-pyuri}
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - offline-db
+
   tls-api:
     build:
       context: .

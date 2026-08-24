@@ -1,6 +1,6 @@
 # 云端部署与每日快照方案
 
-更新日期：2026-08-23
+更新日期：2026-08-24
 
 ## 推荐架构
 
@@ -54,6 +54,48 @@ Railway 为每个服务使用同一代码仓库根目录；三个配置文件在
 3. 先部署 api，再部署 web；确认网页可访问后手动触发 daily。
 4. 从本机 PostgreSQL 导出一次压缩备份并上传到独立云盘；代码仓库不能替代数据库备份。
 5. 配置消费硬上限和失败通知，确认次日 03:30 的第二个快照后，才把本机视为可丢弃环境。
+
+### 生成可验证迁移包
+
+在当前数据库容器健康时运行：
+
+```powershell
+.\scripts\export-cloud-migration.ps1 -ContainerName yuri-postgres-1 -VerifyRestore
+```
+
+输出位于 `var/releases/jjwxc-cloud-migration-*.zip`，另有同名 `.sha256` 文件。脚本会对真实当前数据库执行
+custom-format 备份，并在随机命名的隔离数据库中完成一次恢复演练；验证 Alembic 版本与 JJWXC 核心表行数后，
+隔离数据库会被删除，源库保持不变。迁移包包含恢复脚本与无密钥环境模板，但数据库备份本身仍是私有研究数据，
+不得上传到公开仓库。
+
+### 生成源代码发布包并预检 Railway
+
+```powershell
+.\scripts\build-cloud-source-release.ps1
+```
+
+该命令先校验 API、Web、daily 三份 Railway 配置、Dockerfile、健康检查、数据库迁移命令、UTC Cron 与
+采集请求上界，再用 Git 的已跟踪/未忽略文件清单打包当前工作区。发布包会包含尚未提交的新模块，但排除
+`.env`、Git 历史、数据库备份、缓存、日志、虚拟环境和依赖目录，并用本机 `.env` 的值执行不回显内容的
+泄漏扫描。输出位于 `var/releases/jjwxc-source-release-*.zip`。
+
+截至 2026-08-24，Railway 官方已将 Config as Code 标记为弃用，但既有服务仍支持到 2026-12-01。
+为优先完成虚拟机到期迁移，本项目保留三份现有配置进行首次恢复部署；上线后应迁移到 Railway
+Infrastructure as Code，不能把该兼容期当作长期方案。
+
+## 2026-08-24 实际部署状态
+
+- Railway 项目 `jjwxc-yuri-analytics` 的 PostgreSQL、`api`、`web` 均已部署到新加坡
+  `asia-southeast1-eqsg3a`，数据库只走私网且使用 500MB 持久卷。
+- 公网仅开放 Web：`https://web-production-99ad5.up.railway.app`；API 和 PostgreSQL 没有持久公网入口。
+- Alembic 已升级至 `20260824_0014`。一次性云端小样本任务在私网完成：发现频道作品 407 部、
+  保存两个榜单共 20 个位置、扫描作品库摘要 99 条、补全 5 部作品的 725 条章节记录和 2 位作者资料，
+  失败作品为 0，观测日为 2026-08-24。
+- 首页、小说、分析、作者、数据政策和运行状态六个公网页面均通过 HTTP 200 验证；首页可见 5 部
+  实际采集作品，作者页可见 5 位作者，所有页面保留个人研究和非商业声明。
+- 当前工作区仍为 Railway Trial（30 天或 5 美元额度）。Trial 的三服务限制已被 Web、API、PostgreSQL
+  占满，因此 `daily` 尚未创建。激活 Hobby 后再创建 `daily`、挂载 500MB `/data/cache` 卷，并在
+  Railway Usage 页面设置每月 25 美元硬上限。
 
 ## 发布边界
 

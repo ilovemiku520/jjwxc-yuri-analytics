@@ -205,15 +205,25 @@ def collect_daily_ranking(
     }
 
 
+def _build_request_headers(*, accept: str, referer: str | None = None) -> dict[str, str]:
+    headers: dict[str, str] = {
+        "Accept": accept,
+        "Accept-Encoding": "gzip, identity",
+        "User-Agent": _USER_AGENT,
+    }
+    session_cookie = os.getenv("JJYURI_SESSION_COOKIE", "").strip()
+    if session_cookie:
+        headers["Cookie"] = session_cookie
+    if referer:
+        headers["Referer"] = referer
+    return headers
+
+
 def _fetch_ranking(url: str) -> tuple[JjwxcRankingEntry, ...]:
     request = urllib.request.Request(
         url,
         method="GET",
-        headers={
-            "Accept": "text/html",
-            "Accept-Encoding": "gzip, identity",
-            "User-Agent": _USER_AGENT,
-        },
+        headers=_build_request_headers(accept="text/html"),
     )
     with urllib.request.build_opener(_NoRedirect()).open(request, timeout=25) as response:
         if response.status != 200 or response.geturl() != url:

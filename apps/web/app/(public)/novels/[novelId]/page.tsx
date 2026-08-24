@@ -84,7 +84,7 @@ export default async function NovelDetailPage({
               <dt>V 章节章均点击数</dt>
               <dd>
                 {novel.average_v_chapter_click_count === null
-                  ? "当前采集响应不可见"
+                  ? "需作者后台授权数据"
                   : formatCount(novel.average_v_chapter_click_count)}
               </dd>
             </div>
@@ -92,7 +92,7 @@ export default async function NovelDetailPage({
               <dt>V/非 V 点击留存比（代理）</dt>
               <dd>
                 {retentionPercent === null
-                  ? "缺少 V/非 V 共同可见点击"
+                  ? "缺少作者授权的 V 点击"
                   : `${retentionPercent.toFixed(1)}%`}
               </dd>
             </div>
@@ -121,7 +121,7 @@ export default async function NovelDetailPage({
           </p>
           <p>
             点击覆盖率 = 有非空点击数的章节数 ÷ 已解析章节总数。V
-            章点击不可见时，V 章仍计入分母、但不进入分子，因此总覆盖率会降低；缺失值不会补零，也不会改变非 V 章均点击。
+            章点击不对普通读者公开；没有作品作者本人授权的后台数据时，V 章仍计入分母、但不进入分子，因此总覆盖率会降低。缺失值不会补零，也不会改变非 V 章均点击。
           </p>
           <p>
             “V/非 V 点击留存比” = V 章节章均点击数 ÷ 非 V

@@ -1,0 +1,14 @@
+:root { color-scheme: light; font-family: system-ui, "Microsoft YaHei", sans-serif; }
+body { width: 360px; margin: 0; color: #402334; background: #fff8fb; }
+main { padding: 20px; }
+.eyebrow { margin: 0; color: #a33b72; font-size: 11px; letter-spacing: .12em; }
+h1 { margin: 6px 0 10px; font-size: 22px; }
+p, li, label { font-size: 13px; line-height: 1.55; }
+.attestation { display: block; margin: 14px 0; padding: 10px; border: 1px solid #edc8da; border-radius: 10px; background: white; }
+button { width: 100%; padding: 10px; border: 0; border-radius: 9px; color: white; background: #a33b72; font-weight: 700; cursor: pointer; }
+button:disabled { opacity: .45; }
+.actions { display: grid; gap: 8px; }
+button.secondary { color: #80576c; background: #f4dce7; }
+#status { min-height: 38px; }
+details { border-top: 1px solid #edc8da; padding-top: 10px; }
+footer { margin-top: 14px; color: #80576c; font-size: 11px; }

@@ -1,6 +1,8 @@
 param(
     [ValidatePattern('^[1-9][0-9]{0,11}$')]
-    [string]$NovelId = '10806685'
+    [string]$NovelId = '10806685',
+    [Parameter(Mandatory = $false)]
+    [string]$SessionCookie
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,12 +13,17 @@ if (-not (Test-Path -LiteralPath $pythonPath)) {
 }
 
 $previousNetwork = [Environment]::GetEnvironmentVariable('JJYURI_ENABLE_NETWORK', 'Process')
+$previousCookie = [Environment]::GetEnvironmentVariable('JJYURI_SESSION_COOKIE', 'Process')
 try {
     [Environment]::SetEnvironmentVariable('JJYURI_ENABLE_NETWORK', 'true', 'Process')
+    if ($PSBoundParameters.ContainsKey('SessionCookie') -and -not [string]::IsNullOrWhiteSpace($SessionCookie)) {
+        [Environment]::SetEnvironmentVariable('JJYURI_SESSION_COOKIE', $SessionCookie.Trim(), 'Process')
+    }
     & $pythonPath -m pixiv_yuri.jjwxc.public_probe $NovelId --execute-live
     if ($LASTEXITCODE -ne 0) {
         throw 'JJWXC public metadata probe failed.'
     }
 } finally {
     [Environment]::SetEnvironmentVariable('JJYURI_ENABLE_NETWORK', $previousNetwork, 'Process')
+    [Environment]::SetEnvironmentVariable('JJYURI_SESSION_COOKIE', $previousCookie, 'Process')
 }

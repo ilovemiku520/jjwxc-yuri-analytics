@@ -18,7 +18,7 @@
       "synopsis_sentence_count": 6,
       "synopsis_theme_terms": ["都市", "成长"],
       "tags": ["都市", "情有独钟", "成长", "HE"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     },
     {
@@ -38,7 +38,7 @@
       "synopsis_sentence_count": 7,
       "synopsis_theme_terms": ["救赎", "历史"],
       "tags": ["强强", "朝堂", "救赎", "HE"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     },
     {
@@ -58,7 +58,7 @@
       "synopsis_sentence_count": 6,
       "synopsis_theme_terms": ["悬疑", "职场"],
       "tags": ["悬疑", "业界精英", "久别重逢", "正剧"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     },
     {
@@ -78,7 +78,7 @@
       "synopsis_sentence_count": 5,
       "synopsis_theme_terms": ["成长", "校园", "破镜重圆"],
       "tags": ["校园", "成长", "破镜重圆", "轻松"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     },
     {
@@ -98,7 +98,7 @@
       "synopsis_sentence_count": 5,
       "synopsis_theme_terms": ["科幻", "冒险"],
       "tags": ["星际", "科幻", "冒险", "强强"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     },
     {
@@ -118,7 +118,7 @@
       "synopsis_sentence_count": 8,
       "synopsis_theme_terms": ["历史", "救赎"],
       "tags": ["古色古香", "权谋", "天作之合", "HE"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     },
     {
@@ -138,7 +138,7 @@
       "synopsis_sentence_count": 5,
       "synopsis_theme_terms": ["都市", "职场"],
       "tags": ["都市", "暗恋", "职场", "轻松"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     },
     {
@@ -158,7 +158,7 @@
       "synopsis_sentence_count": null,
       "synopsis_theme_terms": [],
       "tags": ["奇幻", "山海经", "公路文", "成长"],
-      "observed_at": "2026-08-23T12:00:00Z",
+      "observed_at": "2026-08-24T12:00:00Z",
       "source_mode": "synthetic_fixture"
     }
   ],
@@ -170,6 +170,6 @@
     {"day": "2026-08-20", "observed_novel_count": 8, "total_review_count": 16470, "total_favorite_count": 188100, "total_points": 2024700000, "total_word_count": 2160200, "click_coverage_count": 6, "mean_non_v_chapter_click_count": 16220.0},
     {"day": "2026-08-21", "observed_novel_count": 8, "total_review_count": 16820, "total_favorite_count": 190000, "total_points": 2052100000, "total_word_count": 2175800, "click_coverage_count": 6, "mean_non_v_chapter_click_count": 16500.0},
     {"day": "2026-08-22", "observed_novel_count": 8, "total_review_count": 17140, "total_favorite_count": 192100, "total_points": 2079400000, "total_word_count": 2191100, "click_coverage_count": 6, "mean_non_v_chapter_click_count": 16760.0},
-    {"day": "2026-08-23", "observed_novel_count": 8, "total_review_count": 17300, "total_favorite_count": 193000, "total_points": 2082100000, "total_word_count": 2199500, "click_coverage_count": 6, "mean_non_v_chapter_click_count": 16933.33}
+    {"day": "2026-08-24", "observed_novel_count": 8, "total_review_count": 17300, "total_favorite_count": 193000, "total_points": 2082100000, "total_word_count": 2199500, "click_coverage_count": 6, "mean_non_v_chapter_click_count": 16933.33}
   ]
 }

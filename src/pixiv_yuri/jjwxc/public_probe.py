@@ -20,6 +20,20 @@ from pixiv_yuri.jjwxc.html_parser import MAX_HTML_BYTES, JjwxcParseError, parse_
 _USER_AGENT = "JJWXC-Yuri-Research/0.1 (+mailto:ilovemiku520@outlook.com)"
 
 
+def _build_request_headers(*, accept: str, referer: str | None = None) -> dict[str, str]:
+    headers: dict[str, str] = {
+        "Accept": accept,
+        "Accept-Encoding": "gzip, identity",
+        "User-Agent": _USER_AGENT,
+    }
+    session_cookie = os.getenv("JJYURI_SESSION_COOKIE", "").strip()
+    if session_cookie:
+        headers["Cookie"] = session_cookie
+    if referer:
+        headers["Referer"] = referer
+    return headers
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(
         self,
@@ -48,7 +62,7 @@ def probe_public_novel(
     request = urllib.request.Request(
         url,
         method="GET",
-        headers={"Accept": "text/html", "User-Agent": _USER_AGENT},
+        headers=_build_request_headers(accept="text/html"),
     )
     opener = urllib.request.build_opener(_NoRedirect())
     with opener.open(request, timeout=timeout_seconds) as response:
@@ -76,6 +90,7 @@ def probe_public_novel(
         novel_id=novel_id,
         observed_at=observed_at or datetime.now(UTC),
     )
+    login_used = bool(os.getenv("JJYURI_SESSION_COOKIE", "").strip())
     return {
         "status": "candidate_ready",
         "candidate": candidate.model_dump(mode="json"),
@@ -83,7 +98,7 @@ def probe_public_novel(
             "request_count": 1,
             "network_concurrency": 1,
             "automatic_retries": 0,
-            "login_used": False,
+            "login_used": login_used,
             "credentials_requested": False,
             "raw_payload_persisted": False,
             "chapter_content_persisted": False,

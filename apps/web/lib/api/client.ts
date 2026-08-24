@@ -44,3 +44,17 @@ export async function postApi<T>(path: string, body: unknown): Promise<T> {
   }
   return (await response.json()) as T;
 }
+
+export async function fetchInternalApi<T>(path: string): Promise<T> {
+  const safePath = validatedApiPath(path);
+  const origin = validatedApiOrigin(process.env.PYURI_INTERNAL_API_URL);
+  const operationToken = process.env.PYURI_COHORT_IMPORT_TOKEN;
+  if (!operationToken) throw new Error("Internal operation is disabled");
+  const response = await fetch(`${origin}${safePath}`, {
+    cache: "no-store",
+    headers: { Accept: "application/json", "X-Pyuri-Internal-Operation": operationToken },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) throw new ApiResponseError(response.status);
+  return (await response.json()) as T;
+}

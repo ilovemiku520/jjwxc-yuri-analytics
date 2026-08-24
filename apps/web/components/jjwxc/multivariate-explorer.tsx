@@ -873,7 +873,7 @@ export function MultivariateExplorer({
         </details>
         <p className="analysis-note v-click-coverage" role="status">
           V 章点击覆盖：{vClickCoverage}/{data.cohort_items.length} 部作品。 V
-          章数值只在已登录作品页提供时保存；公开点击接口缺失该字段时不会再覆盖登录页中的原值。
+          章数值仅在作品作者本人授权导入后台统计时保存；公开页和普通读者登录页缺失该字段时保持为空。
           留存代理覆盖：{retentionCoverage}/{data.cohort_items.length} 部作品。
         </p>
       </section>

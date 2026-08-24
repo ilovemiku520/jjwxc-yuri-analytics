@@ -574,3 +574,18 @@ Docker Desktop.
 The Pixiv-specific endpoint adapter and any live call remain blocked until its exact
 request/response field contract is reviewed and the operator supplies a runtime-only
 session locally. No account password is required or accepted.
+
+## Railway public deployment (2026-08-24)
+
+The current JJWXC product is publicly reachable at
+`https://web-production-99ad5.up.railway.app`. PostgreSQL, the private FastAPI service and
+the Next.js Web service are healthy in Railway's Singapore region. Database migrations
+reached `20260824_0014`; only the Web service has a public domain.
+
+A bounded one-time collection completed inside Railway with 14 network requests: 407
+channel discoveries, 20 ranking positions, 99 bookbase summaries, 5 hydrated novel
+snapshots, 725 chapter rows and 2 author profiles, with zero failed novels. All six
+representative public pages returned HTTP 200 and the temporary PostgreSQL TCP proxies
+used during diagnostics were deleted. The remaining deployment blocker is billing:
+the workspace is still on Trial, so the fourth `daily` cron service and the approved
+USD 25 monthly spend cap require Hobby activation.

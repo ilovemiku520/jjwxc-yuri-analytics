@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>晋江作者 V 点击导出</title><link rel="stylesheet" href="popup.css"></head>
+  <body>
+    <main>
+      <p class="eyebrow">AUTHOR-OWNED METRICS · v1.1.0</p>
+      <h1>跨页收集 V 章节点击</h1>
+      <p>请由作品作者本人登录晋江作者后台。逐页收集后，可一次合并导出。</p>
+      <label class="attestation"><input id="attest" type="checkbox">我确认当前数据属于我本人拥有管理权限的作品。</label>
+      <div class="actions">
+        <button id="collect" type="button" disabled>收集当前页</button>
+        <button id="export" type="button" disabled>导出已收集数据</button>
+        <button id="clear" class="secondary" type="button" disabled>清空本机暂存</button>
+      </div>
+      <p id="status" role="status" aria-live="polite">正在读取本机暂存状态……</p>
+      <details><summary>固定边界</summary><ul><li>不读取账号、密码、Cookie、Token</li><li>不读取章节正文、标题、内容提要或读者身份</li><li>不自动翻页、不调用隐藏接口、不绕过访问控制</li><li>仅在本机保存作品 ID、章节 ID、V 点击整数</li><li>暂存 24 小时后自动过期，最多 50,000 条</li></ul></details>
+      <footer>个人开发者：ilovemiku520@outlook.com</footer>
+    </main>
+    <script src="collector-core.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

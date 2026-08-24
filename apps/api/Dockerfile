@@ -18,4 +18,6 @@ RUN addgroup --system --gid 10001 pyuri \
 
 USER pyuri
 
-ENTRYPOINT ["pyuri-schema-probe"]
+# Keep the image usable for the offline probe by default while allowing
+# Railway/Compose to replace the process with the API, migration, or cron job.
+CMD ["pyuri-schema-probe"]

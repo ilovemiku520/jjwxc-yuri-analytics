@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "晋江作者 V 点击导出助手 · Yuri Analytics",
+  "version": "1.1.0",
+  "description": "由作品作者本人从已打开的晋江作者后台页面导出最小化 V 章节点击元数据。",
+  "minimum_chrome_version": "111",
+  "permissions": ["activeTab", "downloads", "scripting", "storage"],
+  "host_permissions": ["https://my.jjwxc.net/*"],
+  "action": {
+    "default_title": "导出作者后台 V 点击",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://my.jjwxc.net/*"],
+      "js": ["collector-core.js", "collector.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

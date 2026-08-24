@@ -621,6 +621,29 @@ export interface JjwxcCohortImportResponse {
   items: JjwxcCohortImportItem[];
 }
 
+export interface JjwxcAuthorVClickImportItem {
+  novel_id: string;
+  status: "imported" | "duplicate" | "rejected";
+  accepted_chapter_count: number;
+  error_code: string | null;
+}
+
+export interface JjwxcAuthorVClickImportResponse {
+  accepted_novel_count: number;
+  accepted_chapter_count: number;
+  items: JjwxcAuthorVClickImportItem[];
+}
+
+export interface JjwxcAuthorVClickJobResponse {
+  job_id: number;
+  status: "pending" | "running" | "completed" | "failed";
+  task_status: "pending" | "running" | "succeeded" | "failed";
+  attempt_count: number;
+  record_count: number;
+  last_error_code: string | null;
+  novel_ids: string[];
+}
+
 export type JjwxcRatingMetric =
   "reviews" | "favorites" | "points" | "words" | "clicks";
 

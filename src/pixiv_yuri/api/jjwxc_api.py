@@ -5,7 +5,8 @@ from __future__ import annotations
 import hmac
 import os
 from collections import defaultdict
-from datetime import date
+from dataclasses import asdict
+from datetime import date, datetime
 from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException, Query
@@ -20,6 +21,17 @@ from pixiv_yuri.jjwxc.analytics import (
     correlation_matrix,
     metric_summary,
     normalized_timeline,
+)
+from pixiv_yuri.jjwxc.author_v_import import (
+    MAX_AUTHOR_V_CLICK_NOVELS,
+    MAX_AUTHOR_V_CLICK_RECORDS,
+    AuthorVClickRecord,
+    import_author_v_clicks,
+)
+from pixiv_yuri.jjwxc.author_v_jobs import (
+    author_v_job_status,
+    enqueue_author_v_job,
+    retry_author_v_job,
 )
 from pixiv_yuri.jjwxc.cohort_import import (
     MAX_COHORT_NOVEL_IDS,
@@ -62,6 +74,14 @@ from pixiv_yuri.jjwxc.ratings import (
 
 NovelSort = Literal["reviews", "favorites", "points", "words", "clicks"]
 AuthorSort = Literal["favorites", "reviews", "points", "novels"]
+
+
+def _require_author_import_token(provided: str | None) -> None:
+    expected = os.getenv("PYURI_COHORT_IMPORT_TOKEN")
+    if not expected:
+        raise HTTPException(status_code=503, detail="jjwxc_author_v_import_disabled")
+    if provided is None or not hmac.compare_digest(provided, expected):
+        raise HTTPException(status_code=403, detail="jjwxc_author_v_import_forbidden")
 
 
 class JjwxcOverviewResponse(BaseModel):
@@ -259,6 +279,55 @@ class JjwxcCohortImportResponse(BaseModel):
     ready_count: int = Field(ge=0, le=MAX_COHORT_NOVEL_IDS)
     minimum_analysis_sample: int = MIN_CORRELATION_SAMPLE_SIZE
     items: tuple[JjwxcCohortImportItem, ...]
+
+
+class JjwxcAuthorVClickRecord(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    novel_id: str = Field(pattern=r"^[1-9][0-9]{0,11}$")
+    chapter_id: int = Field(ge=1, le=1_000_000)
+    click_count: int = Field(ge=0, le=10**12)
+
+
+class JjwxcAuthorVClickImportRequest(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    source_format: Literal["pyuri_jjwxc_author_v_clicks_json"]
+    schema_version: Literal[1]
+    generated_at: datetime
+    authorization_attestation: Literal[True]
+    records: tuple[JjwxcAuthorVClickRecord, ...] = Field(
+        min_length=1, max_length=MAX_AUTHOR_V_CLICK_RECORDS
+    )
+
+
+class JjwxcAuthorVClickImportItem(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    novel_id: str
+    status: Literal["imported", "duplicate", "rejected"]
+    accepted_chapter_count: int = Field(ge=0)
+    error_code: str | None = None
+
+
+class JjwxcAuthorVClickImportResponse(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    accepted_novel_count: int = Field(ge=0, le=MAX_AUTHOR_V_CLICK_NOVELS)
+    accepted_chapter_count: int = Field(ge=0, le=MAX_AUTHOR_V_CLICK_RECORDS)
+    items: tuple[JjwxcAuthorVClickImportItem, ...]
+
+
+class JjwxcAuthorVClickJobResponse(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    job_id: int = Field(ge=1)
+    status: Literal["pending", "running", "completed", "failed"]
+    task_status: Literal["pending", "running", "succeeded", "failed"]
+    attempt_count: int = Field(ge=0, le=3)
+    record_count: int = Field(ge=1, le=MAX_AUTHOR_V_CLICK_RECORDS)
+    last_error_code: str | None = None
+    novel_ids: tuple[str, ...] = Field(max_length=20)
 
 
 class JjwxcRatingItem(BaseModel):
@@ -622,6 +691,110 @@ def register_jjwxc_routes(
             ready_count=sum(item.status == "ready" for item in response_items),
             items=response_items,
         )
+
+    @application.post(
+        "/api/v1/jjwxc/analytics/author-v-clicks/import",
+        response_model=JjwxcAuthorVClickImportResponse,
+        include_in_schema=False,
+    )
+    def import_author_v_click_export(
+        request: JjwxcAuthorVClickImportRequest,
+        x_pyuri_internal_operation: str | None = Header(default=None),
+    ) -> JjwxcAuthorVClickImportResponse:
+        expected_token = os.getenv("PYURI_COHORT_IMPORT_TOKEN")
+        if not expected_token:
+            raise HTTPException(status_code=503, detail="jjwxc_author_v_import_disabled")
+        if x_pyuri_internal_operation is None or not hmac.compare_digest(
+            x_pyuri_internal_operation, expected_token
+        ):
+            raise HTTPException(status_code=403, detail="jjwxc_author_v_import_forbidden")
+        if session_factory is None:
+            raise HTTPException(status_code=503, detail="jjwxc_database_required")
+        try:
+            with session_factory() as session:
+                imported = import_author_v_clicks(
+                    session,
+                    records=tuple(
+                        AuthorVClickRecord(
+                            novel_id=item.novel_id,
+                            chapter_id=item.chapter_id,
+                            click_count=item.click_count,
+                        )
+                        for item in request.records
+                    ),
+                    observed_at=request.generated_at,
+                    authorization_attested=request.authorization_attestation,
+                )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        items = tuple(
+            JjwxcAuthorVClickImportItem(
+                novel_id=item.novel_id,
+                status=item.status,
+                accepted_chapter_count=item.accepted_chapter_count,
+                error_code=item.error_code,
+            )
+            for item in imported
+        )
+        return JjwxcAuthorVClickImportResponse(
+            accepted_novel_count=sum(item.status != "rejected" for item in items),
+            accepted_chapter_count=sum(item.accepted_chapter_count for item in items),
+            items=items,
+        )
+
+    @application.post(
+        "/api/v1/jjwxc/analytics/author-v-clicks/jobs",
+        response_model=JjwxcAuthorVClickJobResponse,
+        include_in_schema=False,
+    )
+    def create_author_v_click_job(
+        request: JjwxcAuthorVClickImportRequest,
+        x_pyuri_internal_operation: str | None = Header(default=None),
+    ) -> JjwxcAuthorVClickJobResponse:
+        _require_author_import_token(x_pyuri_internal_operation)
+        if session_factory is None:
+            raise HTTPException(status_code=503, detail="jjwxc_database_required")
+        with session_factory() as session:
+            job = enqueue_author_v_job(session, payload=request.model_dump(mode="json"))
+        return JjwxcAuthorVClickJobResponse(**asdict(job))
+
+    @application.get(
+        "/api/v1/jjwxc/analytics/author-v-clicks/jobs/{job_id}",
+        response_model=JjwxcAuthorVClickJobResponse,
+        include_in_schema=False,
+    )
+    def get_author_v_click_job(
+        job_id: int,
+        x_pyuri_internal_operation: str | None = Header(default=None),
+    ) -> JjwxcAuthorVClickJobResponse:
+        _require_author_import_token(x_pyuri_internal_operation)
+        if session_factory is None:
+            raise HTTPException(status_code=503, detail="jjwxc_database_required")
+        try:
+            with session_factory() as session:
+                job = author_v_job_status(session, job_id=job_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return JjwxcAuthorVClickJobResponse(**asdict(job))
+
+    @application.post(
+        "/api/v1/jjwxc/analytics/author-v-clicks/jobs/{job_id}/retry",
+        response_model=JjwxcAuthorVClickJobResponse,
+        include_in_schema=False,
+    )
+    def retry_author_v_click_job(
+        job_id: int,
+        x_pyuri_internal_operation: str | None = Header(default=None),
+    ) -> JjwxcAuthorVClickJobResponse:
+        _require_author_import_token(x_pyuri_internal_operation)
+        if session_factory is None:
+            raise HTTPException(status_code=503, detail="jjwxc_database_required")
+        try:
+            with session_factory() as session:
+                job = retry_author_v_job(session, job_id=job_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return JjwxcAuthorVClickJobResponse(**asdict(job))
 
     @application.get(
         "/api/v1/jjwxc/analytics/ratings",
