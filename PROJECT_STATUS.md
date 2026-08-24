@@ -586,6 +586,7 @@ A bounded one-time collection completed inside Railway with 14 network requests:
 channel discoveries, 20 ranking positions, 99 bookbase summaries, 5 hydrated novel
 snapshots, 725 chapter rows and 2 author profiles, with zero failed novels. All six
 representative public pages returned HTTP 200 and the temporary PostgreSQL TCP proxies
-used during diagnostics were deleted. The remaining deployment blocker is billing:
-the workspace is still on Trial, so the fourth `daily` cron service and the approved
-USD 25 monthly spend cap require Hobby activation.
+used during diagnostics were deleted. The fourth `daily` service is now deployed without
+a public domain, with a 500MB `/data/cache` volume and the bounded collector scheduled at
+UTC 19:30 (Asia/Shanghai 03:30). The workspace remains on the cardless Trial; the next
+online evidence is the 2026-08-25 automatic run and second observation-day snapshot.
