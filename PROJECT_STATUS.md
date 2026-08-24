@@ -631,3 +631,11 @@ After applying that variable, two manual execution checks exited normally. The p
 Web now reports 44 novel samples, 44 authors and 20 visible ranking positions for the
 2026-08-24 snapshot, replacing the earlier five-item cloud sample. The next scheduled
 run remains the authoritative daily observation and will continue the resumable cache.
+
+### Module completion validation (2026-08-24)
+
+The completed Web module passed TypeScript type checking, 22 Web unit tests, and 16
+desktop/mobile end-to-end tests, including search-first indexing, cohort import failure
+reporting, ownership/data-policy statements, analytics controls and accessibility checks.
+The JJWXC backend module passed 28 focused Python tests covering public probes, catalog
+expansion, ranking collection, source cache, snapshot persistence and API routes.
