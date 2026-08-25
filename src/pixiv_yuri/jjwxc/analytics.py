@@ -7,7 +7,11 @@ from math import log1p, sqrt
 from statistics import fmean, median, pstdev
 from typing import Literal
 
-from pixiv_yuri.jjwxc.models import JjwxcNovel, JjwxcTrendPoint
+from pixiv_yuri.jjwxc.models import (
+    JjwxcDistributionSummary,
+    JjwxcNovel,
+    JjwxcTrendPoint,
+)
 
 MetricName = Literal[
     "reviews",
@@ -112,6 +116,40 @@ def metric_summary(
         "p75": _percentile(values, 0.75),
         "coefficient_of_variation": deviation / mean if mean else None,
     }
+
+
+def distribution_summary(
+    values: list[int | float], *, group_size: int = 10
+) -> JjwxcDistributionSummary:
+    """Summarize one daily slice for top/bottom means and a Tukey box plot."""
+    if not 1 <= group_size <= 10:
+        raise ValueError("distribution_group_size_out_of_range")
+    ordered = sorted(float(value) for value in values)
+    if not ordered:
+        return JjwxcDistributionSummary(observed_count=0, top_group_count=0, bottom_group_count=0)
+    p25 = _percentile(ordered, 0.25)
+    middle = _percentile(ordered, 0.5)
+    p75 = _percentile(ordered, 0.75)
+    iqr = p75 - p25
+    lower_fence = p25 - 1.5 * iqr
+    upper_fence = p75 + 1.5 * iqr
+    inliers = [value for value in ordered if lower_fence <= value <= upper_fence]
+    selected_count = min(group_size, len(ordered))
+    return JjwxcDistributionSummary(
+        observed_count=len(ordered),
+        top_group_count=selected_count,
+        bottom_group_count=selected_count,
+        top_mean=fmean(ordered[-selected_count:]),
+        bottom_mean=fmean(ordered[:selected_count]),
+        lower_whisker=min(inliers) if inliers else ordered[0],
+        p25=p25,
+        median=middle,
+        p75=p75,
+        upper_whisker=max(inliers) if inliers else ordered[-1],
+        outliers=tuple(
+            value for value in ordered if value < lower_fence or value > upper_fence
+        ),
+    )
 
 
 def correlation_matrix(novels: tuple[JjwxcNovel, ...]) -> tuple[dict[str, object], ...]:

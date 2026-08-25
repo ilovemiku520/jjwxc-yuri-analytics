@@ -1924,6 +1924,48 @@ a {
   margin: 0 0 0.35rem;
 }
 
+.distribution-panel {
+  background:
+    linear-gradient(135deg, rgba(141, 226, 203, 0.065), transparent 42%),
+    var(--surface) !important;
+}
+
+.distribution-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+  padding-top: 1rem;
+}
+
+.distribution-summary-grid article {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(141, 226, 203, 0.2);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.distribution-summary-grid span,
+.distribution-summary-grid small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.distribution-summary-grid strong {
+  overflow: hidden;
+  color: var(--mint);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.05rem, 2vw, 1.45rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.distribution-chart {
+  height: 430px;
+}
+
 .cohort-builder {
   margin: 0 0 1rem;
 }
@@ -2811,6 +2853,10 @@ a {
     flex-direction: column;
   }
 
+  .distribution-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .weight-grid {
     grid-template-columns: 1fr;
   }
@@ -2865,5 +2911,15 @@ a {
 
   .top-ten-correlation-chart {
     height: 330px;
+  }
+}
+
+@media (max-width: 520px) {
+  .distribution-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .distribution-chart {
+    height: 360px;
   }
 }

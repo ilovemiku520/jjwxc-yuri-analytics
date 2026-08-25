@@ -1,9 +1,17 @@
 "use client";
 
-import { BarChart, HeatmapChart, LineChart } from "echarts/charts";
 import {
+  BarChart,
+  BoxplotChart,
+  HeatmapChart,
+  LineChart,
+  ScatterChart,
+} from "echarts/charts";
+import {
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
+  ToolboxComponent,
   TooltipComponent,
   VisualMapComponent,
 } from "echarts/components";
@@ -13,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildTimelineAxisSpecs,
+  compactAxisUnit,
   formatAxisTick,
   type TimelineAggregation,
 } from "../../lib/jjwxc/timeline-axis";
@@ -37,11 +46,15 @@ import type {
 echarts.use([
   GridComponent,
   LegendComponent,
+  DataZoomComponent,
+  ToolboxComponent,
   TooltipComponent,
   VisualMapComponent,
   HeatmapChart,
   BarChart,
+  BoxplotChart,
   LineChart,
+  ScatterChart,
   CanvasRenderer,
 ]);
 
@@ -136,6 +149,203 @@ function novelMetricValue(
       : novel.v_to_non_v_click_retention_basis_points / 10_000;
   }
   return novel.synopsis_char_count;
+}
+
+function DistributionTrendChart({
+  timeline,
+  metric,
+}: {
+  timeline: JjwxcTrendPoint[];
+  metric: JjwxcTimelineMetricName;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const summaries = useMemo(
+    () => timeline.map((point) => point.metric_distributions?.[metric] ?? null),
+    [metric, timeline],
+  );
+  const latestIndex = summaries.findLastIndex(
+    (summary) => (summary?.observed_count ?? 0) > 0,
+  );
+  const latest =
+    latestIndex >= 0
+      ? {
+          day: timeline[latestIndex]?.day ?? "",
+          summary: summaries[latestIndex] ?? null,
+        }
+      : null;
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (
+      !container ||
+      !summaries.some((item) => (item?.observed_count ?? 0) > 0)
+    )
+      return;
+    const chart = echarts.init(container, undefined, { renderer: "canvas" });
+    const maximum = Math.max(
+      0,
+      ...summaries.flatMap((summary) =>
+        summary
+          ? [
+              summary.upper_whisker ?? 0,
+              summary.top_mean ?? 0,
+              ...summary.outliers,
+            ]
+          : [],
+      ),
+    );
+    const unit = compactAxisUnit(maximum);
+    const boxData = summaries.map((summary) =>
+      summary &&
+      summary.lower_whisker !== null &&
+      summary.p25 !== null &&
+      summary.median !== null &&
+      summary.p75 !== null &&
+      summary.upper_whisker !== null
+        ? [
+            summary.lower_whisker,
+            summary.p25,
+            summary.median,
+            summary.p75,
+            summary.upper_whisker,
+          ]
+        : null,
+    );
+    const outliers = summaries.flatMap(
+      (summary, dayIndex) =>
+        summary?.outliers.map((value) => [dayIndex, value]) ?? [],
+    );
+    chart.setOption({
+      animationDuration: 320,
+      color: ["#8de2cb", "#f6c969", "#8cb8ff", "#ff9f7d"],
+      grid: {
+        left: 88,
+        right: 38,
+        top: 78,
+        bottom: timeline.length > 14 ? 76 : 42,
+      },
+      legend: { textStyle: { color: "#b9adb6" } },
+      tooltip: { trigger: "axis" },
+      toolbox: {
+        right: 8,
+        feature: {
+          dataZoom: { yAxisIndex: "none" },
+          restore: {},
+          saveAsImage: { name: `JJWXC-${labelFor(metric)}-时序分布` },
+        },
+        iconStyle: { borderColor: "#b9adb6" },
+      },
+      dataZoom:
+        timeline.length > 14
+          ? [
+              { type: "inside", xAxisIndex: 0 },
+              {
+                type: "slider",
+                xAxisIndex: 0,
+                height: 18,
+                bottom: 16,
+                borderColor: "rgba(255,255,255,.12)",
+                textStyle: { color: "#b9adb6" },
+              },
+            ]
+          : [],
+      xAxis: {
+        type: "category",
+        data: timeline.map((item) => item.day.slice(5)),
+        axisLabel: { color: "#b9adb6" },
+        axisLine: { lineStyle: { color: "rgba(255,255,255,.15)" } },
+      },
+      yAxis: {
+        type: "value",
+        name: `${labelFor(metric)}（${unit.prefix || "原值"}）`,
+        nameTextStyle: { color: "#b9adb6" },
+        axisLabel: {
+          color: "#b9adb6",
+          formatter: (value: number) => formatAxisTick(value, unit.divisor),
+        },
+        splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } },
+      },
+      series: [
+        {
+          name: "箱型分布（Tukey）",
+          type: "boxplot",
+          data: boxData,
+          itemStyle: {
+            color: "rgba(141,226,203,.24)",
+            borderColor: "#8de2cb",
+          },
+        },
+        {
+          name: "Top 10 均值",
+          type: "line",
+          smooth: true,
+          symbolSize: 7,
+          data: summaries.map((summary) => summary?.top_mean ?? null),
+          lineStyle: { width: 2.5 },
+        },
+        {
+          name: "Bottom 10 均值",
+          type: "line",
+          smooth: true,
+          symbolSize: 7,
+          data: summaries.map((summary) => summary?.bottom_mean ?? null),
+          lineStyle: { width: 2.5 },
+        },
+        {
+          name: "异常值",
+          type: "scatter",
+          symbolSize: 8,
+          data: outliers,
+        },
+      ],
+    });
+    const observer = new ResizeObserver(() => chart.resize());
+    observer.observe(container);
+    return () => {
+      observer.disconnect();
+      chart.dispose();
+    };
+  }, [metric, summaries, timeline]);
+
+  const number = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 1 });
+  return (
+    <div className="distribution-timeline">
+      {latest?.summary ? (
+        <div className="distribution-summary-grid" aria-label="最新分布统计">
+          <article>
+            <span>最新统计日</span>
+            <strong>{latest.day}</strong>
+            <small>有效样本 n={latest.summary.observed_count}</small>
+          </article>
+          <article>
+            <span>Top {latest.summary.top_group_count} 均值</span>
+            <strong>{number.format(latest.summary.top_mean ?? 0)}</strong>
+            <small>当日高位组</small>
+          </article>
+          <article>
+            <span>中位数</span>
+            <strong>{number.format(latest.summary.median ?? 0)}</strong>
+            <small>对极端值更稳健</small>
+          </article>
+          <article>
+            <span>Bottom {latest.summary.bottom_group_count} 均值</span>
+            <strong>{number.format(latest.summary.bottom_mean ?? 0)}</strong>
+            <small>当日低位组</small>
+          </article>
+        </div>
+      ) : (
+        <p className="analysis-note">当前数据源尚未保存逐日分布统计。</p>
+      )}
+      {latest?.summary ? (
+        <div
+          className="analysis-chart distribution-chart"
+          ref={containerRef}
+          role="img"
+          aria-label={`${labelFor(metric)} Top 10、Bottom 10 均值与时序箱型图`}
+        />
+      ) : null}
+    </div>
+  );
 }
 
 function TimelineChart({
@@ -701,6 +911,8 @@ export function MultivariateExplorer({
   const [timelineSelection, setTimelineSelection] = useState<
     JjwxcTimelineMetricName[]
   >(["favorites"]);
+  const [distributionMetric, setDistributionMetric] =
+    useState<JjwxcTimelineMetricName>("favorites");
   const [dateFrom, setDateFrom] = useState(availableDays[0] ?? "");
   const [dateTo, setDateTo] = useState(availableDays.at(-1) ?? "");
   const [matrixSelection, setMatrixSelection] = useState<JjwxcMetricName[]>(
@@ -750,6 +962,99 @@ export function MultivariateExplorer({
 
   return (
     <div className="analysis-stack">
+      <section className="chart-panel distribution-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">DAILY DISTRIBUTION · ROBUST VIEW</p>
+            <h2>每日样本分布与分层均值</h2>
+          </div>
+          <span>Top / Bottom 10 · Tukey 箱型图</span>
+        </div>
+        <div className="metric-picker" aria-label="时序分布指标">
+          {timelineMetrics.map((metric) => {
+            const hasDistribution = data.timeline.some(
+              (point) =>
+                (point.metric_distributions?.[metric.key]?.observed_count ??
+                  0) > 0,
+            );
+            return (
+              <button
+                aria-pressed={distributionMetric === metric.key}
+                disabled={!hasDistribution}
+                key={metric.key}
+                onClick={() => setDistributionMetric(metric.key)}
+                type="button"
+              >
+                {metric.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="timeline-range" aria-label="统计时间范围">
+          <label>
+            <span>开始日期</span>
+            <input
+              max={dateTo || availableDays.at(-1)}
+              min={availableDays[0]}
+              onChange={(event) => {
+                setDateFrom(event.target.value);
+                if (dateTo && event.target.value > dateTo)
+                  setDateTo(event.target.value);
+              }}
+              type="date"
+              value={dateFrom}
+            />
+          </label>
+          <label>
+            <span>结束日期</span>
+            <input
+              max={availableDays.at(-1)}
+              min={dateFrom || availableDays[0]}
+              onChange={(event) => {
+                setDateTo(event.target.value);
+                if (dateFrom && event.target.value < dateFrom)
+                  setDateFrom(event.target.value);
+              }}
+              type="date"
+              value={dateTo}
+            />
+          </label>
+          <p>
+            统计时间：{dateFrom || "最早"} 至 {dateTo || "最新"} ·{" "}
+            {filteredTimeline.length} 个快照日
+          </p>
+        </div>
+        <DistributionTrendChart
+          metric={distributionMetric}
+          timeline={filteredTimeline}
+        />
+        <p className="analysis-note">
+          每日先保留每部作品最后一条快照，再按所选指标排序。Top 与 Bottom
+          各取最多 10 部求均值；箱体显示 25%、50%、75% 分位数，须线采用 1.5
+          倍四分位距，异常值单独标出但不删除。
+        </p>
+        <details className="statistics-details statistics-requirements">
+          <summary>分布统计要求与解释边界</summary>
+          <div>
+            <ul>
+              <li>
+                每个统计日都显示有效样本量 n；不足 10 部时使用全部有效作品。
+              </li>
+              <li>
+                n&lt;20 时 Top 与 Bottom
+                组会发生重叠，两条均值线只作小样本描述。
+              </li>
+              <li>
+                每日作品集合可能变化，本图描述当日采集样本的截面分布，不等同于固定作品队列的增长率。
+              </li>
+              <li>
+                总采集量不稳定时，中位数和四分位数通常比总和更稳健；仍应结合样本量与榜单来源解释。
+              </li>
+            </ul>
+          </div>
+        </details>
+      </section>
+
       <section className="chart-panel">
         <div className="panel-heading">
           <div>
@@ -800,42 +1105,6 @@ export function MultivariateExplorer({
             );
           })}
         </div>
-        <div className="timeline-range" aria-label="统计时间范围">
-          <label>
-            <span>开始日期</span>
-            <input
-              max={dateTo || availableDays.at(-1)}
-              min={availableDays[0]}
-              onChange={(event) => {
-                setDateFrom(event.target.value);
-                if (dateTo && event.target.value > dateTo)
-                  setDateTo(event.target.value);
-              }}
-              type="date"
-              value={dateFrom}
-            />
-          </label>
-          <label>
-            <span>结束日期</span>
-            <input
-              max={availableDays.at(-1)}
-              min={dateFrom || availableDays[0]}
-              onChange={(event) => {
-                setDateTo(event.target.value);
-                if (dateFrom && event.target.value < dateFrom)
-                  setDateFrom(event.target.value);
-              }}
-              type="date"
-              value={dateTo}
-            />
-          </label>
-          <p>
-            统计时间：{dateFrom || "最早"} 至 {dateTo || "最新"} ·{" "}
-            {filteredTimeline.length}
-            个快照日 · {data.cohort_items.length} 部作品 ·
-            {timelineAggregation === "total" ? "总量统计" : "每部作品均值"}
-          </p>
-        </div>
         <TimelineChart
           timeline={filteredTimeline}
           normalized={filteredNormalized}
@@ -847,7 +1116,9 @@ export function MultivariateExplorer({
         <p className="analysis-note">
           默认显示原值、总量统计并以收藏数为左侧纵轴；平均模式按每个快照日的实际作品数计算。
           增加变量后会分配独立纵轴，并按量级自动选用千、万或亿。
-          基准指数模式把区间首个有效值设为 100%，只比较变化速度。
+          基准指数模式把区间首个有效值设为
+          100%，只比较变化速度。总量受当日采集作品数影响，
+          跨日稳健比较优先参考上方分布图。
         </p>
         <details className="statistics-details statistics-requirements">
           <summary>统计要求说明</summary>

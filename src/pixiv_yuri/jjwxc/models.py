@@ -111,6 +111,24 @@ class JjwxcCatalogSearchItem(BaseModel):
     detail_available: bool
 
 
+class JjwxcDistributionSummary(BaseModel):
+    """One daily cross-sectional distribution with robust comparison bands."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    observed_count: int = Field(ge=0)
+    top_group_count: int = Field(ge=0, le=10)
+    bottom_group_count: int = Field(ge=0, le=10)
+    top_mean: float | None = Field(default=None, ge=0)
+    bottom_mean: float | None = Field(default=None, ge=0)
+    lower_whisker: float | None = Field(default=None, ge=0)
+    p25: float | None = Field(default=None, ge=0)
+    median: float | None = Field(default=None, ge=0)
+    p75: float | None = Field(default=None, ge=0)
+    upper_whisker: float | None = Field(default=None, ge=0)
+    outliers: tuple[float, ...] = ()
+
+
 class JjwxcTrendPoint(BaseModel):
     """Synthetic or canonical daily aggregate used by the private dashboard."""
 
@@ -126,3 +144,7 @@ class JjwxcTrendPoint(BaseModel):
     mean_non_v_chapter_click_count: float | None = Field(default=None, ge=0)
     v_click_coverage_count: int = Field(default=0, ge=0)
     mean_v_chapter_click_count: float | None = Field(default=None, ge=0)
+    metric_distributions: dict[
+        Literal["reviews", "favorites", "points", "words", "clicks", "v_clicks"],
+        JjwxcDistributionSummary,
+    ] = Field(default_factory=dict)

@@ -538,6 +538,23 @@ export interface JjwxcTrendPoint {
   mean_non_v_chapter_click_count: number | null;
   v_click_coverage_count: number;
   mean_v_chapter_click_count: number | null;
+  metric_distributions?: Partial<
+    Record<JjwxcTimelineMetricName, JjwxcDistributionSummary>
+  >;
+}
+
+export interface JjwxcDistributionSummary {
+  observed_count: number;
+  top_group_count: number;
+  bottom_group_count: number;
+  top_mean: number | null;
+  bottom_mean: number | null;
+  lower_whisker: number | null;
+  p25: number | null;
+  median: number | null;
+  p75: number | null;
+  upper_whisker: number | null;
+  outliers: number[];
 }
 
 export interface JjwxcTrendResponse {

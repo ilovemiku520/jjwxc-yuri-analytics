@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from pixiv_yuri.jjwxc.analytics import TimelineMetricName, distribution_summary
 from pixiv_yuri.jjwxc.demo import JjwxcDemoCatalog, load_demo_catalog
 from pixiv_yuri.jjwxc.models import JjwxcCatalogSearchItem, JjwxcNovel, JjwxcTrendPoint
 from pixiv_yuri.jjwxc.persistence import (
@@ -322,16 +323,24 @@ def _trend_points(
         grouped[day].append(snapshot)
     points: list[JjwxcTrendPoint] = []
     for day, snapshots in sorted(grouped.items()):
-        clicks = [
+        clicks: list[int | float] = [
             item.average_non_v_chapter_click_count
             for item in snapshots
             if item.average_non_v_chapter_click_count is not None
         ]
-        v_clicks = [
+        v_clicks: list[int | float] = [
             item.average_v_chapter_click_count
             for item in snapshots
             if item.average_v_chapter_click_count is not None
         ]
+        metric_values: dict[TimelineMetricName, list[int | float]] = {
+            "reviews": [item.review_count for item in snapshots],
+            "favorites": [item.favorite_count for item in snapshots],
+            "points": [item.points for item in snapshots],
+            "words": [item.word_count for item in snapshots],
+            "clicks": clicks,
+            "v_clicks": v_clicks,
+        }
         points.append(
             JjwxcTrendPoint(
                 day=day,
@@ -346,6 +355,10 @@ def _trend_points(
                 mean_v_chapter_click_count=(
                     sum(v_clicks) / len(v_clicks) if v_clicks else None
                 ),
+                metric_distributions={
+                    metric: distribution_summary(values)
+                    for metric, values in metric_values.items()
+                },
             )
         )
     return tuple(points)

@@ -3,6 +3,34 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from pixiv_yuri.api.app import create_app
+from pixiv_yuri.jjwxc.analytics import distribution_summary
+
+
+def test_daily_distribution_uses_bounded_groups_and_tukey_whiskers() -> None:
+    summary = distribution_summary([1, 2, 3, 4, 5, 100], group_size=2)
+
+    assert summary.model_dump() == {
+        "observed_count": 6,
+        "top_group_count": 2,
+        "bottom_group_count": 2,
+        "top_mean": 52.5,
+        "bottom_mean": 1.5,
+        "lower_whisker": 1.0,
+        "p25": 2.25,
+        "median": 3.5,
+        "p75": 4.75,
+        "upper_whisker": 5.0,
+        "outliers": (100.0,),
+    }
+
+
+def test_empty_daily_distribution_preserves_missingness() -> None:
+    summary = distribution_summary([])
+
+    assert summary.observed_count == 0
+    assert summary.top_mean is None
+    assert summary.median is None
+    assert summary.outliers == ()
 
 
 def test_jjwxc_overview_and_trends_are_fixture_only() -> None:

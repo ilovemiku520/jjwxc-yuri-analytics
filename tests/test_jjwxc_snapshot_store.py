@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from pixiv_yuri.jjwxc.database_catalog import _trend_points
 from pixiv_yuri.jjwxc.demo import load_demo_catalog
 from pixiv_yuri.jjwxc.models import JjwxcNovel
 from pixiv_yuri.jjwxc.persistence import (
@@ -62,6 +63,41 @@ def test_snapshot_store_is_idempotent_and_keeps_immutable_history() -> None:
         ).all()
         assert [item.review_count for item in snapshots] == [1260, 1285]
         assert snapshots[0].synopsis_theme_terms == ["都市", "成长"]
+
+
+def test_database_timeline_includes_daily_cross_sectional_distributions() -> None:
+    engine = _engine()
+    novels = load_demo_catalog().novels
+    with Session(engine) as session:
+        for novel in novels:
+            store_novel_snapshot(session, novel)
+        session.commit()
+
+    with Session(engine) as session:
+        rows = list(
+            session.execute(
+                select(JjwxcNovelSnapshot, JjwxcNovelRecord, JjwxcAuthorRecord)
+                .join(
+                    JjwxcNovelRecord,
+                    JjwxcNovelRecord.id == JjwxcNovelSnapshot.novel_record_id,
+                )
+                .join(
+                    JjwxcAuthorRecord,
+                    JjwxcAuthorRecord.id == JjwxcNovelRecord.author_record_id,
+                )
+            )
+            .tuples()
+            .all()
+        )
+        latest = _trend_points(rows)[-1]
+    favorites = latest.metric_distributions["favorites"]
+
+    assert favorites.observed_count == len(novels)
+    assert favorites.top_group_count == len(novels)
+    assert favorites.bottom_group_count == len(novels)
+    assert favorites.median == 24_150
+    assert favorites.lower_whisker <= favorites.p25 <= favorites.median
+    assert favorites.median <= favorites.p75 <= favorites.upper_whisker
 
 
 def test_older_snapshot_does_not_rewind_current_projection() -> None:
