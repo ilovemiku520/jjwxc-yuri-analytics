@@ -132,6 +132,9 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
   await expect(
     page.getByText("须外值不再单独绘点", { exact: false }),
   ).toBeVisible();
+  await expect(
+    page.getByText("本图不采用固定作品队列", { exact: false }),
+  ).toBeVisible();
   await page.getByLabel("开始日期").fill("2026-08-23");
   await expect(page.getByText(/1\s*个快照日/u)).toBeVisible();
   await page.getByLabel("开始日期").fill("2026-08-22");

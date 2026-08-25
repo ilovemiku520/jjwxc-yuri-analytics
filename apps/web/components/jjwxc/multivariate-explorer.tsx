@@ -1051,7 +1051,7 @@ export function MultivariateExplorer({
           25%、50%、75% 分位数，须线采用 1.5
           倍四分位距。须外值不再单独绘点，但不会从原始数据或 Top 10
           均值中删除。左轴只用于箱型分布，右轴只用于 Top 10
-          均值，两轴独立缩放，不比较折线与箱体的垂直位置。
+          均值，两轴独立缩放，不比较折线与箱体的垂直位置。每日采集作品集合会随榜单来源与采集成功情况变化，本图不采用固定作品队列。
         </p>
         <details className="statistics-details statistics-requirements">
           <summary>分布统计要求与解释边界</summary>
