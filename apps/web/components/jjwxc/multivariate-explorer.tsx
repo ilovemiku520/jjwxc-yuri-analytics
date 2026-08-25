@@ -306,7 +306,8 @@ function DistributionTrendChart({
           smooth: true,
           symbolSize: 7,
           data: summaries.map((summary) => summary?.top_mean ?? null),
-          lineStyle: { width: 2.5 },
+          itemStyle: { color: "#f6c969" },
+          lineStyle: { color: "#f6c969", width: 2.5 },
         },
       ],
     });
