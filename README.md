@@ -22,14 +22,13 @@
 - 作者专栏快照：采集非锁定/锁定作品数、作者被收藏数、非锁定作品总字数与总积分；
 - 读者投入指标：通过作品页自身调用的公开聚合 JSONP 保存营养液，并结合首章点击计算忠诚率和首章点收比；
 - 作者竞争力：汇总频道金榜与新手金榜的上榜次数和观测日数；
-- 趋势可视化：按日展示 Top/Bottom 10 均值、Tukey 时序箱型图、样本量与异常值，并支持最多三个指标的原值或基准指数对比；
+- 趋势可视化：按日展示 Top 10 均值、Tukey 时序箱型图、样本量与异常值，并支持最多三个指标的原值或基准指数对比；
 - 变量分析：成对完整样本相关矩阵，以及可调样本量的 Pearson、Spearman、一阶矩和二阶矩比较；
-- 原值多轴：最多三个变量分别使用左轴、右轴和右侧外轴，按量级自动选择千、万或亿，
-  同时标明求和统计或跨作品均值；
+- 均值多轴：最多三个变量分别使用左轴、右轴和右侧外轴，按量级自动选择千、万或亿，
+  同时标明每部作品均值或跨作品章均值；
 - 公开页面解析：支持 JJWXC 的 GB18030 页面，提取最小元数据、文案统计特征和章节目录结构；
 - 点击采集：使用作品页自身加载的公开静态响应保存逐章点击，并严格区分 V/非 V 和缺失值；
 - 可恢复分层回填：频道页本次发现 412 个去重作品编号；作品库摘要分页扩展搜索面，详细页面进入队列分批补全并缓存 24 小时；
-- 单样本真实探针：一次只访问一个公开作品概览页，无登录、无 Cookie、无自动重试；
 - 既有工程底座：PostgreSQL、Alembic、FastAPI、Next.js、Docker、安全门禁与审计模型。
 - PostgreSQL 快照底座：迁移 `20260824_0014` 提供作者专栏、小说、章节点击、双榜单、发现队列与分层搜索索引。
 
@@ -71,47 +70,6 @@ JJWXC 百合频道 + 公开作品页 + 页面聚合/点击 JSONP（默认禁用�
 
 为保留已有数据库迁移和部署兼容性，Python 内部包名暂时仍为 `pixiv_yuri`；新代码集中在
 `pixiv_yuri.jjwxc`，产品名称、API 标题和网站已切换到 JJWXC。
-
-## 本机启动
-
-```powershell
-docker compose --profile api --profile web up -d --build postgres db-migrate api web
-```
-
-浏览器打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)。主要页面：
-
-- `/`：概览与趋势；
-- `/novels`：作品名/作者名搜索、频道双榜与可交互小说分析；
-- `/authors`：作者排行；
-- `/analytics`：每日分布、多指标时间轴、相关矩阵与可调样本统计；
-- `/operations/imports`：真实单样本候选状态；
-- `/about/data-policy`：数据使用与来源声明。
-
-## 单个真实公开样本
-
-双击 `scripts/run-jjwxc-public-probe.cmd`，或传入一个公开 novelid：
-
-```powershell
-.\scripts\run-jjwxc-public-probe.ps1 -NovelId 10806685
-```
-
-成功后仅生成：
-
-- `var/candidates/jjwxc-public-novel.candidate.json`：最小化候选；
-- `var/reports/jjwxc-public-probe.json`：不含字段值的状态报告。
-
-该命令临时打开单进程网络开关，结束后恢复；不代表允许批量采集或正式入库。
-
-## 质量检查
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_jjwxc_public_probe.py tests/test_jjwxc_api.py
-.\.venv\Scripts\python.exe -m ruff check src/pixiv_yuri/jjwxc src/pixiv_yuri/api/jjwxc_api.py
-.\.venv\Scripts\python.exe -m mypy src/pixiv_yuri/jjwxc src/pixiv_yuri/api/jjwxc_api.py
-pnpm --filter @pyuri/web typecheck
-pnpm --filter @pyuri/web lint
-pnpm --filter @pyuri/web test
-```
 
 ## 使用与来源声明
 
