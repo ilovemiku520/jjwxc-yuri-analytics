@@ -23,7 +23,6 @@ import {
   buildTimelineAxisSpecs,
   compactAxisUnit,
   formatAxisTick,
-  type TimelineAggregation,
 } from "../../lib/jjwxc/timeline-axis";
 import {
   analyzeLogMomentCorrelation,
@@ -92,10 +91,8 @@ const colors: Record<JjwxcTimelineMetricName, string> = {
 function rawValue(
   point: JjwxcTrendPoint,
   metric: JjwxcTimelineMetricName,
-  aggregation: TimelineAggregation = "total",
 ): number | null {
-  const divisor =
-    aggregation === "per_work" ? Math.max(1, point.observed_novel_count) : 1;
+  const divisor = Math.max(1, point.observed_novel_count);
   if (metric === "reviews") return point.total_review_count / divisor;
   if (metric === "favorites") return point.total_favorite_count / divisor;
   if (metric === "points") return point.total_points / divisor;
@@ -106,13 +103,12 @@ function rawValue(
 
 function normalizeTimelineForRange(
   timeline: JjwxcTrendPoint[],
-  aggregation: TimelineAggregation,
 ): JjwxcNormalizedTrendPoint[] {
   const baselines = Object.fromEntries(
     timelineMetrics.map(({ key }) => [
       key,
       timeline
-        .map((point) => rawValue(point, key, aggregation))
+        .map((point) => rawValue(point, key))
         .find((value) => value !== null && value !== 0) ?? null,
     ]),
   ) as Record<JjwxcTimelineMetricName, number | null>;
@@ -120,7 +116,7 @@ function normalizeTimelineForRange(
     day: point.day,
     values: Object.fromEntries(
       timelineMetrics.map(({ key }) => {
-        const value = rawValue(point, key, aggregation);
+        const value = rawValue(point, key);
         const baseline = baselines[key];
         return [
           key,
@@ -300,14 +296,6 @@ function DistributionTrendChart({
           lineStyle: { width: 2.5 },
         },
         {
-          name: "Bottom 10 均值",
-          type: "line",
-          smooth: true,
-          symbolSize: 7,
-          data: summaries.map((summary) => summary?.bottom_mean ?? null),
-          lineStyle: { width: 2.5 },
-        },
-        {
           name: "异常值",
           type: "scatter",
           symbolSize: 8,
@@ -357,7 +345,7 @@ function DistributionTrendChart({
           className="analysis-chart distribution-chart"
           ref={containerRef}
           role="img"
-          aria-label={`${labelFor(metric)} Top 10、Bottom 10 均值与时序箱型图`}
+          aria-label={`${labelFor(metric)} Top 10 均值与时序箱型图`}
         />
       ) : null}
     </div>
@@ -369,14 +357,12 @@ function TimelineChart({
   normalized,
   metrics,
   indexed,
-  aggregation,
   label,
 }: {
   timeline: JjwxcTrendPoint[];
   normalized: JjwxcNormalizedTrendPoint[];
   metrics: JjwxcTimelineMetricName[];
   indexed: boolean;
-  aggregation: TimelineAggregation;
   label: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -385,11 +371,11 @@ function TimelineChart({
     for (const metric of metrics) {
       maxima[metric] = Math.max(
         0,
-        ...timeline.map((point) => rawValue(point, metric, aggregation) ?? 0),
+        ...timeline.map((point) => rawValue(point, metric) ?? 0),
       );
     }
-    return buildTimelineAxisSpecs(metrics, maxima, aggregation);
-  }, [aggregation, metrics, timeline]);
+    return buildTimelineAxisSpecs(metrics, maxima);
+  }, [metrics, timeline]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -453,7 +439,7 @@ function TimelineChart({
         symbolSize: 7,
         data: indexed
           ? normalized.map((item) => item.values[metric])
-          : timeline.map((item) => rawValue(item, metric, aggregation)),
+          : timeline.map((item) => rawValue(item, metric)),
       })),
     });
     const observer = new ResizeObserver(() => chart.resize());
@@ -462,7 +448,7 @@ function TimelineChart({
       observer.disconnect();
       chart.dispose();
     };
-  }, [aggregation, axisSpecs, indexed, metrics, normalized, timeline]);
+  }, [axisSpecs, indexed, metrics, normalized, timeline]);
 
   return (
     <div className="timeline-chart-block">
@@ -922,8 +908,6 @@ export function MultivariateExplorer({
     ? data.available_days
     : data.timeline.map((item) => item.day);
   const [indexed, setIndexed] = useState(false);
-  const [timelineAggregation, setTimelineAggregation] =
-    useState<TimelineAggregation>("total");
   const [timelineSelection, setTimelineSelection] = useState<
     JjwxcTimelineMetricName[]
   >(["favorites"]);
@@ -959,8 +943,8 @@ export function MultivariateExplorer({
     [data.timeline, dateFrom, dateTo],
   );
   const filteredNormalized = useMemo(
-    () => normalizeTimelineForRange(filteredTimeline, timelineAggregation),
-    [filteredTimeline, timelineAggregation],
+    () => normalizeTimelineForRange(filteredTimeline),
+    [filteredTimeline],
   );
 
   function toggleTimeline(metric: JjwxcTimelineMetricName) {
@@ -991,9 +975,9 @@ export function MultivariateExplorer({
         <div className="panel-heading">
           <div>
             <p className="eyebrow">DAILY DISTRIBUTION · ROBUST VIEW</p>
-            <h2>每日样本分布与分层均值</h2>
+            <h2>每日样本分布与头部均值</h2>
           </div>
-          <span>Top / Bottom 10 · Tukey 箱型图</span>
+          <span>Top 10 · Tukey 箱型图</span>
         </div>
         <div className="metric-picker" aria-label="时序分布指标">
           {timelineMetrics.map((metric) => {
@@ -1054,8 +1038,9 @@ export function MultivariateExplorer({
           timeline={filteredTimeline}
         />
         <p className="analysis-note">
-          每日先保留每部作品最后一条快照，再按所选指标排序。Top 与 Bottom
-          各取最多 10 部求均值；箱体显示 25%、50%、75% 分位数，须线采用 1.5
+          每日先保留每部作品最后一条快照，再按所选指标排序。Top 取最多 10
+          部求均值并绘制折线；Bottom 均值只保留最新摘要，不绘制时序线。箱体显示
+          25%、50%、75% 分位数，须线采用 1.5
           倍四分位距，异常值单独标出但不删除。
         </p>
         <details className="statistics-details statistics-requirements">
@@ -1065,10 +1050,7 @@ export function MultivariateExplorer({
               <li>
                 每个统计日都显示有效样本量 n；不足 10 部时使用全部有效作品。
               </li>
-              <li>
-                n&lt;20 时 Top 与 Bottom
-                组会发生重叠，两条均值线只作小样本描述。
-              </li>
+              <li>Top 组不足 10 部时使用全部有效作品，只作小样本描述。</li>
               <li>
                 每日作品集合可能变化，本图描述当日采集样本的截面分布，不等同于固定作品队列的增长率。
               </li>
@@ -1094,25 +1076,6 @@ export function MultivariateExplorer({
             {indexed ? "切换为原值" : "切换为基准指数"}
           </button>
         </div>
-        <div
-          className="metric-picker timeline-aggregation-picker"
-          aria-label="时间轴统计口径"
-        >
-          <button
-            aria-pressed={timelineAggregation === "total"}
-            onClick={() => setTimelineAggregation("total")}
-            type="button"
-          >
-            总量统计
-          </button>
-          <button
-            aria-pressed={timelineAggregation === "per_work"}
-            onClick={() => setTimelineAggregation("per_work")}
-            type="button"
-          >
-            平均每部作品
-          </button>
-        </div>
         <div className="metric-picker" aria-label="时间轴指标，最多选择三个">
           {timelineMetrics.map((metric) => {
             const selected = timelineSelection.includes(metric.key);
@@ -1135,24 +1098,21 @@ export function MultivariateExplorer({
           normalized={filteredNormalized}
           metrics={timelineSelection}
           indexed={indexed}
-          aggregation={timelineAggregation}
-          label={`JJWXC 多指标时间轴图（${timelineAggregation === "total" ? "总量" : "平均每部作品"}）`}
+          label="JJWXC 多指标时间轴图（平均每部作品）"
         />
         <p className="analysis-note">
-          默认显示原值、总量统计并以收藏数为左侧纵轴；平均模式按每个快照日的实际作品数计算。
+          默认显示原值与每部作品均值，并以收藏数为左侧纵轴；均值按每个快照日的实际作品数计算。
           增加变量后会分配独立纵轴，并按量级自动选用千、万或亿。
           基准指数模式把区间首个有效值设为
-          100%，只比较变化速度。总量受当日采集作品数影响，
-          跨日稳健比较优先参考上方分布图。
+          100%，只比较变化速度。跨日比较仍应结合当日样本量与上方分布图解释。
         </p>
         <details className="statistics-details statistics-requirements">
           <summary>统计要求说明</summary>
           <div>
             <ul>
-              <li>总量统计对当日作品的书评、收藏、积分和字数求和。</li>
               <li>
-                平均每部作品 = 当日总量 ÷
-                当日实际有快照的作品数；作品数量变化时应结合该分母解释。
+                每部作品均值 = 当日有效值之和 ÷
+                当日实际有快照的作品数；不再展示容易受采集数量影响的总量线。
               </li>
               <li>
                 V/非 V

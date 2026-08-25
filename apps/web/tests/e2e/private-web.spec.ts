@@ -104,20 +104,20 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
   await expect(
     page.getByRole("button", { name: "切换为基准指数" }),
   ).toBeVisible();
-  await expect(page.getByText("左轴 · 总收藏 · 求和统计 · 万次")).toBeVisible();
-  await page.getByRole("button", { name: "平均每部作品" }).click();
   await expect(
     page.getByText("左轴 · 每部作品平均收藏 · 每部作品均值 · 万次/部"),
   ).toBeVisible();
+  await expect(page.getByRole("button", { name: "总量统计" })).toHaveCount(0);
   await page.getByText("统计要求说明").click();
   await expect(
     page.getByText("缺失值保持为空且不补零", { exact: false }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "总量统计" }).click();
   const timelinePicker = page.getByLabel("时间轴指标，最多选择三个");
   await timelinePicker.getByRole("button", { name: "书评" }).click();
   await timelinePicker.getByRole("button", { name: "非 V 章均点击" }).click();
-  await expect(page.getByText("右轴 · 总书评 · 求和统计 · 千条")).toBeVisible();
+  await expect(
+    page.getByText("右轴 · 每部作品平均书评 · 每部作品均值 · 千条/部"),
+  ).toBeVisible();
   await expect(
     page.getByText("右轴（外侧） · 非 V 章均点击 · 跨作品章均值 · 万次/章"),
   ).toBeVisible();
@@ -125,10 +125,12 @@ test("explores multi-metric history, adjustable ratings, and the correlation mat
     page.getByRole("button", { name: "V 章均点击" }).first(),
   ).toBeVisible();
   await expect(page.getByText("V 章点击覆盖：1/2 部作品")).toBeVisible();
-  await expect(page.getByText("留存代理覆盖：1/2 部作品", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("留存代理覆盖：1/2 部作品", { exact: false }),
+  ).toBeVisible();
   await expect(page.getByLabel("统计时间范围")).toBeVisible();
   await page.getByLabel("开始日期").fill("2026-08-23");
-  await expect(page.getByText(/1个快照日/u)).toBeVisible();
+  await expect(page.getByText(/1\s*个快照日/u)).toBeVisible();
   await page.getByLabel("开始日期").fill("2026-08-22");
   await expect(
     page.getByRole("img", { name: /可调样本作品相关系数比较图/u }),

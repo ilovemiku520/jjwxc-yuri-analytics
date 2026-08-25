@@ -17,7 +17,7 @@ describe("JJWXC timeline axis planning", () => {
     expect(formatAxisTick(17_300, 1_000)).toBe("17.3");
   });
 
-  it("assigns three selected statistics to left, right, and offset-right axes", () => {
+  it("assigns per-work statistics to left, right, and offset-right axes", () => {
     const axes = buildTimelineAxisSpecs(["reviews", "favorites", "clicks"], {
       reviews: 17_300,
       favorites: 193_000,
@@ -30,8 +30,9 @@ describe("JJWXC timeline axis planning", () => {
       ["right", 76],
     ]);
     expect(axes[0]).toMatchObject({
-      displayUnit: "万条",
-      statistic: "求和统计",
+      label: "每部作品平均书评",
+      displayUnit: "万条/部",
+      statistic: "每部作品均值",
     });
     expect(axes[2]).toMatchObject({
       displayUnit: "万次/章",
@@ -40,11 +41,11 @@ describe("JJWXC timeline axis planning", () => {
   });
 
   it("labels per-work averages without dividing already averaged click metrics twice", () => {
-    const axes = buildTimelineAxisSpecs(
-      ["favorites", "reviews", "clicks"],
-      { favorites: 32_000, reviews: 1_260, clicks: 18_200 },
-      "per_work",
-    );
+    const axes = buildTimelineAxisSpecs(["favorites", "reviews", "clicks"], {
+      favorites: 32_000,
+      reviews: 1_260,
+      clicks: 18_200,
+    });
 
     expect(axes[0]).toMatchObject({
       label: "每部作品平均收藏",
