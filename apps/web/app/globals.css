@@ -1962,8 +1962,9 @@ a {
   white-space: nowrap;
 }
 
-.distribution-chart {
-  height: 430px;
+.analysis-stack .distribution-chart {
+  height: 580px;
+  min-height: 580px;
 }
 
 .research-indicator-panel {
@@ -3010,7 +3011,8 @@ a {
     grid-template-columns: 1fr;
   }
 
-  .distribution-chart {
-    height: 360px;
+  .analysis-stack .distribution-chart {
+    height: 500px;
+    min-height: 500px;
   }
 }

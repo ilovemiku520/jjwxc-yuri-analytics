@@ -5,7 +5,6 @@ import {
   BoxplotChart,
   HeatmapChart,
   LineChart,
-  ScatterChart,
 } from "echarts/charts";
 import {
   DataZoomComponent,
@@ -53,7 +52,6 @@ echarts.use([
   BarChart,
   BoxplotChart,
   LineChart,
-  ScatterChart,
   CanvasRenderer,
 ]);
 
@@ -194,19 +192,18 @@ function DistributionTrendChart({
     )
       return;
     const chart = echarts.init(container, undefined, { renderer: "canvas" });
-    const maximum = Math.max(
+    const distributionMaximum = Math.max(
       0,
       ...summaries.flatMap((summary) =>
-        summary
-          ? [
-              summary.upper_whisker ?? 0,
-              summary.top_mean ?? 0,
-              ...summary.outliers,
-            ]
-          : [],
+        summary ? [summary.upper_whisker ?? 0] : [],
       ),
     );
-    const unit = compactAxisUnit(maximum);
+    const topMeanMaximum = Math.max(
+      0,
+      ...summaries.map((summary) => summary?.top_mean ?? 0),
+    );
+    const distributionUnit = compactAxisUnit(distributionMaximum);
+    const topMeanUnit = compactAxisUnit(topMeanMaximum);
     const boxData = summaries.map((summary) =>
       summary &&
       summary.lower_whisker !== null &&
@@ -223,17 +220,13 @@ function DistributionTrendChart({
           ]
         : null,
     );
-    const outliers = summaries.flatMap(
-      (summary, dayIndex) =>
-        summary?.outliers.map((value) => [dayIndex, value]) ?? [],
-    );
     chart.setOption({
       animationDuration: 320,
-      color: ["#8de2cb", "#f6c969", "#8cb8ff", "#ff9f7d"],
+      color: ["#8de2cb", "#f6c969"],
       grid: {
         left: 88,
-        right: 38,
-        top: 78,
+        right: 92,
+        top: 92,
         bottom: timeline.length > 14 ? 76 : 42,
       },
       legend: { textStyle: { color: "#b9adb6" } },
@@ -267,20 +260,39 @@ function DistributionTrendChart({
         axisLabel: { color: "#b9adb6" },
         axisLine: { lineStyle: { color: "rgba(255,255,255,.15)" } },
       },
-      yAxis: {
-        type: "value",
-        name: `${labelFor(metric)}（${unit.prefix || "原值"}）`,
-        nameTextStyle: { color: "#b9adb6" },
-        axisLabel: {
-          color: "#b9adb6",
-          formatter: (value: number) => formatAxisTick(value, unit.divisor),
+      yAxis: [
+        {
+          type: "value",
+          min: 0,
+          name: `箱型分布（${distributionUnit.prefix || "原值"}）`,
+          nameTextStyle: { color: "#8de2cb" },
+          axisLabel: {
+            color: "#b9adb6",
+            formatter: (value: number) =>
+              formatAxisTick(value, distributionUnit.divisor),
+          },
+          axisLine: { show: true, lineStyle: { color: "#8de2cb" } },
+          splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } },
         },
-        splitLine: { lineStyle: { color: "rgba(255,255,255,.08)" } },
-      },
+        {
+          type: "value",
+          min: 0,
+          name: `Top 10 均值（${topMeanUnit.prefix || "原值"}）`,
+          nameTextStyle: { color: "#f6c969" },
+          axisLabel: {
+            color: "#b9adb6",
+            formatter: (value: number) =>
+              formatAxisTick(value, topMeanUnit.divisor),
+          },
+          axisLine: { show: true, lineStyle: { color: "#f6c969" } },
+          splitLine: { show: false },
+        },
+      ],
       series: [
         {
           name: "箱型分布（Tukey）",
           type: "boxplot",
+          yAxisIndex: 0,
           data: boxData,
           itemStyle: {
             color: "rgba(141,226,203,.24)",
@@ -290,16 +302,11 @@ function DistributionTrendChart({
         {
           name: "Top 10 均值",
           type: "line",
+          yAxisIndex: 1,
           smooth: true,
           symbolSize: 7,
           data: summaries.map((summary) => summary?.top_mean ?? null),
           lineStyle: { width: 2.5 },
-        },
-        {
-          name: "异常值",
-          type: "scatter",
-          symbolSize: 8,
-          data: outliers,
         },
       ],
     });
@@ -345,7 +352,7 @@ function DistributionTrendChart({
           className="analysis-chart distribution-chart"
           ref={containerRef}
           role="img"
-          aria-label={`${labelFor(metric)} Top 10 均值与时序箱型图`}
+          aria-label={`${labelFor(metric)} Top 10 均值双轴与 Tukey 时序箱型图`}
         />
       ) : null}
     </div>
@@ -1041,7 +1048,9 @@ export function MultivariateExplorer({
           每日先保留每部作品最后一条快照，再按所选指标排序。Top 取最多 10
           部求均值并绘制折线；Bottom 均值只保留最新摘要，不绘制时序线。箱体显示
           25%、50%、75% 分位数，须线采用 1.5
-          倍四分位距，异常值单独标出但不删除。
+          倍四分位距。须外值不再单独绘点，但不会从原始数据或 Top 10
+          均值中删除。左轴只用于箱型分布，右轴只用于 Top 10
+          均值，两轴独立缩放，不比较折线与箱体的垂直位置。
         </p>
         <details className="statistics-details statistics-requirements">
           <summary>分布统计要求与解释边界</summary>
@@ -1053,6 +1062,13 @@ export function MultivariateExplorer({
               <li>Top 组不足 10 部时使用全部有效作品，只作小样本描述。</li>
               <li>
                 每日作品集合可能变化，本图描述当日采集样本的截面分布，不等同于固定作品队列的增长率。
+              </li>
+              <li>
+                四分位距 IQR = Q3 − Q1；Tukey 须线边界为 Q1 − 1.5 × IQR 与 Q3 +
+                1.5 × IQR。须外值表示相对当日样本偏离较大，不等于采集错误。
+              </li>
+              <li>
+                当新增较多低量级作品时，四分位数和须线上界会下降，原有头部作品可能集中落在须线外；解释跨日变化时必须同时查看样本量。
               </li>
               <li>
                 总采集量不稳定时，中位数和四分位数通常比总和更稳健；仍应结合样本量与榜单来源解释。
