@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
-from pixiv_yuri.jjwxc.database_catalog import _trend_points
+from pixiv_yuri.jjwxc.database_catalog import _trend_points, load_author_ranking_frequency
 from pixiv_yuri.jjwxc.demo import load_demo_catalog
 from pixiv_yuri.jjwxc.models import JjwxcNovel
 from pixiv_yuri.jjwxc.persistence import (
     JjwxcAuthorRecord,
+    JjwxcChannelRankingSnapshot,
     JjwxcNovelRecord,
     JjwxcNovelSnapshot,
 )
@@ -98,6 +99,49 @@ def test_database_timeline_includes_daily_cross_sectional_distributions() -> Non
     assert favorites.median == 24_150
     assert favorites.lower_whisker <= favorites.p25 <= favorites.median
     assert favorites.median <= favorites.p75 <= favorites.upper_whisker
+
+
+def test_author_ranking_frequency_counts_appearances_and_observed_days() -> None:
+    engine = _engine()
+    novel = load_demo_catalog().novels[0]
+    with Session(engine) as session:
+        store_novel_snapshot(session, novel)
+        session.add_all(
+            [
+                JjwxcChannelRankingSnapshot(
+                    ranking_key="channel_gold",
+                    observation_day=date(2026, 8, 24),
+                    observed_at=novel.observed_at,
+                    rank=1,
+                    novel_id=novel.novel_id,
+                    title=novel.title,
+                    source_rank_id="1001",
+                ),
+                JjwxcChannelRankingSnapshot(
+                    ranking_key="newcomer",
+                    observation_day=date(2026, 8, 24),
+                    observed_at=novel.observed_at,
+                    rank=2,
+                    novel_id=novel.novel_id,
+                    title=novel.title,
+                    source_rank_id="1002",
+                ),
+                JjwxcChannelRankingSnapshot(
+                    ranking_key="channel_gold",
+                    observation_day=date(2026, 8, 25),
+                    observed_at=novel.observed_at + timedelta(days=1),
+                    rank=3,
+                    novel_id=novel.novel_id,
+                    title=novel.title,
+                    source_rank_id="1003",
+                ),
+            ]
+        )
+        session.commit()
+
+    frequency = load_author_ranking_frequency(sessionmaker(engine))
+
+    assert frequency[novel.author_id] == (3, 2)
 
 
 def test_older_snapshot_does_not_rewind_current_projection() -> None:

@@ -568,8 +568,12 @@ def enrich_candidate_with_chapters(
     vip = [item for item in chapters if item.is_vip]
     non_v_clicks = [item.click_count for item in non_v if item.click_count is not None]
     vip_clicks = [item.click_count for item in vip if item.click_count is not None]
+    first_chapter = min(chapters, key=lambda item: item.position, default=None)
     return candidate.model_copy(
         update={
+            "first_chapter_click_count": (
+                first_chapter.click_count if first_chapter is not None else None
+            ),
             "average_non_v_chapter_click_count": (
                 sum(non_v_clicks) // len(non_v_clicks)
                 if non_v_clicks

@@ -70,6 +70,10 @@ const timelineMetrics: Array<{ key: JjwxcTimelineMetricName; label: string }> =
 
 const allMetrics: Array<{ key: JjwxcMetricName; label: string }> = [
   ...timelineMetrics,
+  { key: "nutrition", label: "营养液" },
+  { key: "first_clicks", label: "首章点击" },
+  { key: "loyalty", label: "营养液/收藏投入比" },
+  { key: "click_favorite", label: "首章点击/收藏转化比" },
   { key: "v_retention", label: "V/非 V 点击留存比（代理）" },
   { key: "synopsis_chars", label: "文案字符数" },
 ];
@@ -139,6 +143,18 @@ function novelMetricValue(
 ): number | null {
   if (metric === "reviews") return novel.review_count;
   if (metric === "favorites") return novel.favorite_count;
+  if (metric === "nutrition") return novel.nutrition_count;
+  if (metric === "first_clicks") return novel.first_chapter_click_count;
+  if (metric === "loyalty") {
+    return novel.nutrition_to_favorite_basis_points === null
+      ? null
+      : novel.nutrition_to_favorite_basis_points / 10_000;
+  }
+  if (metric === "click_favorite") {
+    return novel.first_click_to_favorite_basis_points === null
+      ? null
+      : novel.first_click_to_favorite_basis_points / 10_000;
+  }
   if (metric === "points") return novel.points;
   if (metric === "words") return novel.word_count;
   if (metric === "clicks") return novel.average_non_v_chapter_click_count;
@@ -916,7 +932,16 @@ export function MultivariateExplorer({
   const [dateFrom, setDateFrom] = useState(availableDays[0] ?? "");
   const [dateTo, setDateTo] = useState(availableDays.at(-1) ?? "");
   const [matrixSelection, setMatrixSelection] = useState<JjwxcMetricName[]>(
-    matrixMetrics.map((item) => item.key),
+    () => {
+      const available = matrixMetrics
+        .filter((metric) =>
+          data.cohort_items.some(
+            (novel) => novelMetricValue(novel, metric.key) !== null,
+          ),
+        )
+        .map((item) => item.key);
+      return available.length >= 2 ? available : ["favorites", "reviews"];
+    },
   );
   const vClickCoverage = data.cohort_items.filter(
     (novel) => novel.average_v_chapter_click_count !== null,

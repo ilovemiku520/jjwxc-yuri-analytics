@@ -17,6 +17,7 @@ from pixiv_yuri.jjwxc.persistence import (
     JjwxcAuthorRecord,
     JjwxcAuthorSnapshot,
     JjwxcCatalogIndexRecord,
+    JjwxcChannelRankingSnapshot,
     JjwxcNovelRecord,
     JjwxcNovelSnapshot,
 )
@@ -123,6 +124,35 @@ def load_latest_author_profiles(
             continue
         latest.setdefault(author.author_id, snapshot)
     return latest
+
+
+def load_author_ranking_frequency(
+    factory: sessionmaker[Session] | None,
+) -> dict[str, tuple[int, int]]:
+    """Count public dual-ranking appearances and distinct observed days per author."""
+    if factory is None:
+        return {}
+    with factory() as session:
+        rows = session.execute(
+            select(
+                JjwxcAuthorRecord.author_id,
+                func.count(JjwxcChannelRankingSnapshot.id),
+                func.count(func.distinct(JjwxcChannelRankingSnapshot.observation_day)),
+            )
+            .join(
+                JjwxcNovelRecord,
+                JjwxcNovelRecord.author_record_id == JjwxcAuthorRecord.id,
+            )
+            .join(
+                JjwxcChannelRankingSnapshot,
+                JjwxcChannelRankingSnapshot.novel_id == JjwxcNovelRecord.novel_id,
+            )
+            .group_by(JjwxcAuthorRecord.author_id)
+        ).all()
+    return {
+        author_id: (int(appearance_count), int(observed_day_count))
+        for author_id, appearance_count, observed_day_count in rows
+    }
 
 
 def search_catalog(
@@ -293,7 +323,11 @@ def _novel_from_row(
         word_count=snapshot.word_count,
         review_count=snapshot.review_count,
         favorite_count=snapshot.favorite_count,
+        nutrition_count=snapshot.nutrition_count,
+        recommendation_count=snapshot.recommendation_count,
+        bomb_ticket_count=snapshot.bomb_ticket_count,
         points=snapshot.points,
+        first_chapter_click_count=snapshot.first_chapter_click_count,
         average_non_v_chapter_click_count=snapshot.average_non_v_chapter_click_count,
         average_v_chapter_click_count=snapshot.average_v_chapter_click_count,
         non_v_chapter_count=snapshot.non_v_chapter_count,

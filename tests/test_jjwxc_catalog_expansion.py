@@ -175,11 +175,13 @@ def test_click_jsonp_preserves_authenticated_inline_vip_clicks() -> None:
 
     assert parse_chapter_click_payload(click_payload) == {1: 500}
     assert enriched.average_non_v_chapter_click_count == 500
+    assert enriched.first_chapter_click_count == 500
     assert enriched.average_v_chapter_click_count == 300
     assert enriched.non_v_chapter_count == 1
     assert enriched.v_chapter_count == 1
     assert enriched.chapter_click_coverage_count == 2
     assert enriched.v_to_non_v_click_retention_basis_points == 6_000
+    assert enriched.first_click_to_favorite_basis_points == 250_000
 
 
 def test_click_retention_proxy_preserves_missing_v_clicks() -> None:

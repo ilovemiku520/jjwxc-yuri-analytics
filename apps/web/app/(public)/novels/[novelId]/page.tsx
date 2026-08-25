@@ -69,8 +69,56 @@ export default async function NovelDetailPage({
               <dd>{formatCount(novel.favorite_count)}</dd>
             </div>
             <div>
+              <dt>营养液数</dt>
+              <dd>
+                {novel.nutrition_count === null
+                  ? "公开响应未提供"
+                  : formatCount(novel.nutrition_count)}
+              </dd>
+            </div>
+            <div>
+              <dt>忠诚率代理</dt>
+              <dd>
+                {novel.nutrition_to_favorite_basis_points === null
+                  ? "共同有效样本不足"
+                  : `${(novel.nutrition_to_favorite_basis_points / 100).toFixed(1)}%`}
+              </dd>
+            </div>
+            <div>
+              <dt>首章点击数</dt>
+              <dd>
+                {novel.first_chapter_click_count === null
+                  ? "未公开"
+                  : formatCount(novel.first_chapter_click_count)}
+              </dd>
+            </div>
+            <div>
+              <dt>首章点收比</dt>
+              <dd>
+                {novel.first_click_to_favorite_basis_points === null
+                  ? "共同有效样本不足"
+                  : `${(novel.first_click_to_favorite_basis_points / 100).toFixed(1)}%`}
+              </dd>
+            </div>
+            <div>
               <dt>作品积分</dt>
               <dd>{formatCount(novel.points)}</dd>
+            </div>
+            <div>
+              <dt>推荐数</dt>
+              <dd>
+                {novel.recommendation_count === null
+                  ? "公开响应未提供"
+                  : formatCount(novel.recommendation_count)}
+              </dd>
+            </div>
+            <div>
+              <dt>霸王票数</dt>
+              <dd>
+                {novel.bomb_ticket_count === null
+                  ? "公开响应未提供"
+                  : formatCount(novel.bomb_ticket_count)}
+              </dd>
             </div>
             <div>
               <dt>非 V 章节章均点击数</dt>
@@ -121,12 +169,15 @@ export default async function NovelDetailPage({
           </p>
           <p>
             点击覆盖率 = 有非空点击数的章节数 ÷ 已解析章节总数。V
-            章点击不对普通读者公开；没有作品作者本人授权的后台数据时，V 章仍计入分母、但不进入分子，因此总覆盖率会降低。缺失值不会补零，也不会改变非 V 章均点击。
+            章点击不对普通读者公开；没有作品作者本人授权的后台数据时，V
+            章仍计入分母、但不进入分子，因此总覆盖率会降低。缺失值不会补零，也不会改变非
+            V 章均点击。
           </p>
           <p>
             “V/非 V 点击留存比” = V 章节章均点击数 ÷ 非 V
             章节章均点击数，仅在两者同时可见且非 V 均值大于 0
-            时计算。它是点击量比值代理，并非去重读者的真实留存率，也不限制在 100% 以内。
+            时计算。它是点击量比值代理，并非去重读者的真实留存率，也不限制在
+            100% 以内。
           </p>
           {novel.synopsis_char_count !== null ? (
             <p>

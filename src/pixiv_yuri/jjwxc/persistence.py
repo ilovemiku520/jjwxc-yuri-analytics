@@ -154,6 +154,22 @@ class JjwxcNovelSnapshot(Base):
         CheckConstraint("word_count >= 0", name="nonnegative_jjwxc_snapshot_words"),
         CheckConstraint("review_count >= 0", name="nonnegative_jjwxc_snapshot_reviews"),
         CheckConstraint("favorite_count >= 0", name="nonnegative_jjwxc_snapshot_favorites"),
+        CheckConstraint(
+            "nutrition_count IS NULL OR nutrition_count >= 0",
+            name="nonnegative_jjwxc_snapshot_nutrition",
+        ),
+        CheckConstraint(
+            "recommendation_count IS NULL OR recommendation_count >= 0",
+            name="nonnegative_jjwxc_snapshot_recommendations",
+        ),
+        CheckConstraint(
+            "bomb_ticket_count IS NULL OR bomb_ticket_count >= 0",
+            name="nonnegative_jjwxc_snapshot_bomb_tickets",
+        ),
+        CheckConstraint(
+            "first_chapter_click_count IS NULL OR first_chapter_click_count >= 0",
+            name="nonnegative_jjwxc_snapshot_first_clicks",
+        ),
         CheckConstraint("points >= 0", name="nonnegative_jjwxc_snapshot_points"),
         CheckConstraint(
             "average_non_v_chapter_click_count IS NULL OR average_non_v_chapter_click_count >= 0",
@@ -197,7 +213,11 @@ class JjwxcNovelSnapshot(Base):
     word_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
     review_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
     favorite_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    nutrition_count: Mapped[int | None] = mapped_column(BigInteger)
+    recommendation_count: Mapped[int | None] = mapped_column(BigInteger)
+    bomb_ticket_count: Mapped[int | None] = mapped_column(BigInteger)
     points: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    first_chapter_click_count: Mapped[int | None] = mapped_column(BigInteger)
     average_non_v_chapter_click_count: Mapped[int | None] = mapped_column(BigInteger)
     average_v_chapter_click_count: Mapped[int | None] = mapped_column(BigInteger)
     non_v_chapter_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

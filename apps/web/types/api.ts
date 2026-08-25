@@ -402,7 +402,8 @@ export interface ConsumerSecurityStatus {
 export type JjwxcNovelStatus = "连载" | "完结" | "暂停" | "锁定" | "未知";
 export type JjwxcNovelSort =
   "reviews" | "favorites" | "points" | "words" | "clicks";
-export type JjwxcAuthorSort = "favorites" | "reviews" | "points" | "novels";
+export type JjwxcAuthorSort =
+  "favorites" | "reviews" | "points" | "novels" | "rankings";
 
 export interface JjwxcNovel {
   novel_id: string;
@@ -415,13 +416,19 @@ export interface JjwxcNovel {
   word_count: number;
   review_count: number;
   favorite_count: number;
+  nutrition_count: number | null;
+  recommendation_count: number | null;
+  bomb_ticket_count: number | null;
   points: number;
+  first_chapter_click_count: number | null;
   average_non_v_chapter_click_count: number | null;
   average_v_chapter_click_count: number | null;
   non_v_chapter_count: number;
   v_chapter_count: number;
   chapter_click_coverage_count: number;
   v_to_non_v_click_retention_basis_points: number | null;
+  nutrition_to_favorite_basis_points: number | null;
+  first_click_to_favorite_basis_points: number | null;
   synopsis_char_count: number | null;
   synopsis_sentence_count: number | null;
   synopsis_theme_terms: string[];
@@ -514,6 +521,8 @@ export interface JjwxcAuthorSummary {
   profile_total_word_count: number | null;
   profile_total_points: number | null;
   profile_observed_at: string | null;
+  ranking_appearance_count: number;
+  ranking_observed_day_count: number;
 }
 
 export interface JjwxcAuthorPage {
@@ -565,6 +574,10 @@ export interface JjwxcTrendResponse {
 export type JjwxcMetricName =
   | "reviews"
   | "favorites"
+  | "nutrition"
+  | "first_clicks"
+  | "loyalty"
+  | "click_favorite"
   | "points"
   | "words"
   | "clicks"
@@ -574,8 +587,27 @@ export type JjwxcMetricName =
 
 export type JjwxcTimelineMetricName = Exclude<
   JjwxcMetricName,
-  "synopsis_chars" | "v_retention"
+  | "synopsis_chars"
+  | "v_retention"
+  | "nutrition"
+  | "first_clicks"
+  | "loyalty"
+  | "click_favorite"
 >;
+
+export interface JjwxcResearchIndicatorSummary {
+  cohort_count: number;
+  nutrition_observed_count: number;
+  nutrition_coverage_basis_points: number;
+  loyalty_ratio: number | null;
+  click_favorite_observed_count: number;
+  median_click_favorite_ratio: number | null;
+  serial_nutrition_observed_count: number;
+  serial_nutrition_mean: number | null;
+  completed_nutrition_observed_count: number;
+  completed_nutrition_mean: number | null;
+  completed_to_serial_nutrition_ratio: number | null;
+}
 
 export interface JjwxcMetricSummary {
   metric: JjwxcMetricName;
@@ -620,6 +652,7 @@ export interface JjwxcMultivariateResponse {
   normalized_timeline: JjwxcNormalizedTrendPoint[];
   summaries: JjwxcMetricSummary[];
   correlation_matrix: JjwxcCorrelationCell[];
+  research_indicators: JjwxcResearchIndicatorSummary;
 }
 
 export type JjwxcCohortCollectionStatus =

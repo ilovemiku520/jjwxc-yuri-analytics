@@ -48,6 +48,9 @@ export default function RootLayout({
                 公开作品库、频道榜单与作品概览页保存的最小元数据索引和每日快照；不转载原文。
                 晋江文学城及作品相关权利归平台与各权利人，本项目与晋江文学城无隶属或授权关系。
               </p>
+              <p>
+                禁止攻击、未授权访问、恶意扫描、绕过访问控制或破坏网站与接口服务。
+              </p>
             </div>
             <div className="site-footer-meta">
               <p className="project-owner">

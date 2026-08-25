@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CohortFileImporter } from "../../../components/jjwxc/cohort-file-importer";
 import { MultivariateExplorer } from "../../../components/jjwxc/multivariate-explorer";
 import { RatingExplorer } from "../../../components/jjwxc/rating-explorer";
+import { ResearchIndicatorPanel } from "../../../components/jjwxc/research-indicator-panel";
 import { fetchApi } from "../../../lib/api/client";
 import type {
   JjwxcMultivariateResponse,
@@ -80,9 +81,8 @@ export default async function AnalyticsPage({
         </div>
         <div>
           <p>
-            同一时间轴最多并列三个指标；相关矩阵使用 log(1+x) 与标准化后的
-            Pearson 相关系数，可调样本比较同时报告 Pearson、Spearman
-            与置信区间。
+            从作品热度、读者投入、内容生命周期和作者竞争力建立分层指标体系；
+            所有派生比率只使用共同有效样本并报告覆盖率。
           </p>
           <p>
             历史仅指项目自行保存的每日快照，不代表平台提供的历史。
@@ -190,6 +190,7 @@ export default async function AnalyticsPage({
             ) : null}
           </section>
           {ratings ? <RatingExplorer data={ratings} /> : null}
+          <ResearchIndicatorPanel data={data.research_indicators} />
           <MultivariateExplorer data={data} />
         </>
       ) : (

@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from pixiv_yuri.api.app import create_app
-from pixiv_yuri.jjwxc.analytics import distribution_summary
+from pixiv_yuri.jjwxc.analytics import distribution_summary, research_indicator_summary
+from pixiv_yuri.jjwxc.demo import load_demo_catalog
 
 
 def test_daily_distribution_uses_bounded_groups_and_tukey_whiskers() -> None:
@@ -31,6 +32,26 @@ def test_empty_daily_distribution_preserves_missingness() -> None:
     assert summary.top_mean is None
     assert summary.median is None
     assert summary.outliers == ()
+
+
+def test_research_indicators_use_common_observations_and_robust_conversion() -> None:
+    first, second = load_demo_catalog().novels[:2]
+    novels = (
+        first.model_copy(
+            update={"nutrition_count": 9_200, "first_chapter_click_count": 36_800}
+        ),
+        second.model_copy(
+            update={"nutrition_count": 16_300, "first_chapter_click_count": 32_600}
+        ),
+    )
+
+    summary = research_indicator_summary(novels)
+
+    assert summary["nutrition_coverage_basis_points"] == 10_000
+    assert summary["loyalty_ratio"] == 0.5
+    assert summary["median_click_favorite_ratio"] == 1.5
+    assert summary["serial_nutrition_mean"] == 9_200
+    assert summary["completed_nutrition_mean"] == 16_300
 
 
 def test_jjwxc_overview_and_trends_are_fixture_only() -> None:
@@ -136,7 +157,7 @@ def test_multivariate_analytics_preserves_missingness_and_matrix_shape() -> None
     assert len(payload["timeline"]) == 8
     assert len(payload["normalized_timeline"]) == 8
     assert payload["normalized_timeline"][0]["values"]["reviews"] == 10_000
-    assert len(payload["correlation_matrix"]) == 49
+    assert len(payload["correlation_matrix"]) == 121
     assert all(
         cell["x_metric"] != "v_clicks" and cell["y_metric"] != "v_clicks"
         for cell in payload["correlation_matrix"]
@@ -149,6 +170,9 @@ def test_multivariate_analytics_preserves_missingness_and_matrix_shape() -> None
     assert click_summary["observed_count"] == 6
     assert click_summary["missing_count"] == 2
     assert click_summary["coverage_basis_points"] == 7_500
+    assert payload["research_indicators"]["cohort_count"] == 8
+    assert payload["research_indicators"]["nutrition_observed_count"] == 0
+    assert payload["research_indicators"]["loyalty_ratio"] is None
     assert unsupported_fixture_cohort.status_code == 404
     assert unsupported_fixture_cohort.json()["detail"] == "jjwxc_analytics_cohort_not_found"
 

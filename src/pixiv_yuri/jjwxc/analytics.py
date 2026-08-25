@@ -16,6 +16,10 @@ from pixiv_yuri.jjwxc.models import (
 MetricName = Literal[
     "reviews",
     "favorites",
+    "nutrition",
+    "first_clicks",
+    "loyalty",
+    "click_favorite",
     "points",
     "words",
     "clicks",
@@ -44,6 +48,20 @@ class MetricDefinition:
 NOVEL_METRICS = (
     MetricDefinition("reviews", "总书评数", "review_count"),
     MetricDefinition("favorites", "当前被收藏数", "favorite_count"),
+    MetricDefinition("nutrition", "营养液数", "nutrition_count"),
+    MetricDefinition("first_clicks", "首章点击数", "first_chapter_click_count"),
+    MetricDefinition(
+        "loyalty",
+        "营养液/收藏投入比（代理）",
+        "nutrition_to_favorite_basis_points",
+        10_000.0,
+    ),
+    MetricDefinition(
+        "click_favorite",
+        "首章点击/收藏转化比（代理）",
+        "first_click_to_favorite_basis_points",
+        10_000.0,
+    ),
     MetricDefinition("points", "文章积分", "points"),
     MetricDefinition("words", "全文字数", "word_count"),
     MetricDefinition("clicks", "非 V 章节章均点击数", "average_non_v_chapter_click_count"),
@@ -150,6 +168,51 @@ def distribution_summary(
             value for value in ordered if value < lower_fence or value > upper_fence
         ),
     )
+
+
+def research_indicator_summary(novels: tuple[JjwxcNovel, ...]) -> dict[str, object]:
+    """Build cohort-level reader-input proxies without imputing unavailable values."""
+    nutrition_observed = [item for item in novels if item.nutrition_count is not None]
+    nutrition_sum = sum(item.nutrition_count or 0 for item in nutrition_observed)
+    favorite_sum = sum(item.favorite_count for item in nutrition_observed)
+    click_favorite_ratios = [
+        item.first_chapter_click_count / item.favorite_count
+        for item in novels
+        if item.first_chapter_click_count is not None and item.favorite_count > 0
+    ]
+    serial_nutrition = [
+        item.nutrition_count
+        for item in novels
+        if item.status == "连载" and item.nutrition_count is not None
+    ]
+    completed_nutrition = [
+        item.nutrition_count
+        for item in novels
+        if item.status == "完结" and item.nutrition_count is not None
+    ]
+    serial_mean = fmean(serial_nutrition) if serial_nutrition else None
+    completed_mean = fmean(completed_nutrition) if completed_nutrition else None
+    return {
+        "cohort_count": len(novels),
+        "nutrition_observed_count": len(nutrition_observed),
+        "nutrition_coverage_basis_points": (
+            round(len(nutrition_observed) * 10_000 / len(novels)) if novels else 0
+        ),
+        "loyalty_ratio": nutrition_sum / favorite_sum if favorite_sum else None,
+        "click_favorite_observed_count": len(click_favorite_ratios),
+        "median_click_favorite_ratio": (
+            median(click_favorite_ratios) if click_favorite_ratios else None
+        ),
+        "serial_nutrition_observed_count": len(serial_nutrition),
+        "serial_nutrition_mean": serial_mean,
+        "completed_nutrition_observed_count": len(completed_nutrition),
+        "completed_nutrition_mean": completed_mean,
+        "completed_to_serial_nutrition_ratio": (
+            completed_mean / serial_mean
+            if completed_mean is not None and serial_mean is not None and serial_mean > 0
+            else None
+        ),
+    }
 
 
 def correlation_matrix(novels: tuple[JjwxcNovel, ...]) -> tuple[dict[str, object], ...]:

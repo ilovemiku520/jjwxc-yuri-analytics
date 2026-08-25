@@ -23,7 +23,11 @@ class JjwxcNovel(BaseModel):
     word_count: int = Field(ge=0)
     review_count: int = Field(ge=0)
     favorite_count: int = Field(ge=0)
+    nutrition_count: int | None = Field(default=None, ge=0)
+    recommendation_count: int | None = Field(default=None, ge=0)
+    bomb_ticket_count: int | None = Field(default=None, ge=0)
     points: int = Field(ge=0)
+    first_chapter_click_count: int | None = Field(default=None, ge=0)
     average_non_v_chapter_click_count: int | None = Field(default=None, ge=0)
     average_v_chapter_click_count: int | None = Field(default=None, ge=0)
     non_v_chapter_count: int = Field(default=0, ge=0)
@@ -45,6 +49,22 @@ class JjwxcNovel(BaseModel):
         if non_v_clicks is None or v_clicks is None or non_v_clicks <= 0:
             return None
         return round(v_clicks * 10_000 / non_v_clicks)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def nutrition_to_favorite_basis_points(self) -> int | None:
+        """Reader-input proxy; missing nutrition is never treated as zero."""
+        if self.nutrition_count is None or self.favorite_count <= 0:
+            return None
+        return round(self.nutrition_count * 10_000 / self.favorite_count)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def first_click_to_favorite_basis_points(self) -> int | None:
+        """First-chapter click/favorite conversion proxy."""
+        if self.first_chapter_click_count is None or self.favorite_count <= 0:
+            return None
+        return round(self.first_chapter_click_count * 10_000 / self.favorite_count)
 
     @field_validator("observed_at")
     @classmethod

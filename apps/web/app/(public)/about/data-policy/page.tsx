@@ -24,9 +24,11 @@ export default function DataPolicyPage() {
             <span>ATTRIBUTION</span>
           </div>
           <p>
-            页面会明确区分合成 Fixture、作品库摘要索引与数据库详细快照。数据来自晋江文学城百合频道双榜、
+            页面会明确区分合成
+            Fixture、作品库摘要索引与数据库详细快照。数据来自晋江文学城百合频道双榜、
             公开作品库、公开作品概览页、作者专栏及作品页自身加载的公开章节点击响应，包括作品/作者标识、类型、进度、
-            字数、总书评数、收藏数、积分、作者非锁定作品聚合、V/非 V 章节结构与公开点击等元数据；未公开值保持为空。
+            字数、总书评数、收藏数、积分、作者非锁定作品聚合、V/非 V
+            章节结构与公开点击等元数据；未公开值保持为空。
           </p>
         </article>
         <article className="state-panel">
@@ -44,9 +46,19 @@ export default function DataPolicyPage() {
             <span>AGGREGATES ONLY</span>
           </div>
           <p>
-            原始页面只进入不公开的 24 小时压缩缓存，长期库仅保留文案长度、句数和固定主题词；
+            原始页面只进入不公开的 24
+            小时压缩缓存，长期库仅保留文案长度、句数和固定主题词；
             不保存作者简介、章节标题、内容提要、正文、评论内容、读者身份、付费内容、登录态或账号凭据，
             不绕过访问控制。云端每日分页扫描作品库并分批补全详细队列，遇到阻断不会高速重试。
+          </p>
+        </article>
+        <article className="state-panel">
+          <div className="panel-heading">
+            <h2>服务安全</h2>
+            <span>NO ABUSE</span>
+          </div>
+          <p>
+            禁止对网站、接口、数据库或部署基础设施实施攻击、未授权访问、恶意扫描、绕过访问控制、破坏服务可用性或超出正常交互范围的自动化滥用。
           </p>
         </article>
       </section>

@@ -20,6 +20,8 @@
 - 交互式小说分析：按收藏、书评、积分、字数或章均点击排序；
 - 作者分析：按作品总收藏、总书评、总积分和作品数排行；
 - 作者专栏快照：采集非锁定/锁定作品数、作者被收藏数、非锁定作品总字数与总积分；
+- 读者投入指标：在公开响应确有数字时保存营养液、推荐数、霸王票与首章点击，计算忠诚率和首章点收比；
+- 作者竞争力：汇总频道金榜与新手金榜的上榜次数和观测日数；
 - 趋势可视化：按日展示 Top/Bottom 10 均值、Tukey 时序箱型图、样本量与异常值，并支持最多三个指标的原值或基准指数对比；
 - 变量分析：成对完整样本相关矩阵，以及可调样本量的 Pearson、Spearman、一阶矩和二阶矩比较；
 - 原值多轴：最多三个变量分别使用左轴、右轴和右侧外轴，按量级自动选择千、万或亿，
@@ -39,7 +41,8 @@
 允许候选字段包括：
 
 `novel_id`、`title`、`author_id`、`author_display_name`、`novel_type`、`perspective`、
-`status`、`word_count`、`review_count`、`favorite_count`、`points`、
+`status`、`word_count`、`review_count`、`favorite_count`、可空的 `nutrition_count`、
+`recommendation_count`、`bomb_ticket_count`、`first_chapter_click_count`、`points`、
 `average_non_v_chapter_click_count`（可空）、`average_v_chapter_click_count`（可空）、V/非 V 章节数、
 逐章 `chapter_id`、字数与公开点击（可空）、`synopsis_char_count`、`synopsis_sentence_count`、
 `synopsis_theme_terms`、`public_tags`、双榜单位置、作者专栏公开聚合指标、`observed_at`。
@@ -48,7 +51,7 @@
 非 V 均值大于 0 时才计算；它不是去重读者留存率，缺失值不补零，结果也不强制限制在 100%。
 
 明确排除长期保存或公开：文案原文、章节标题、内容提要、章节正文、评论正文、读者身份、付费内容、
-账号凭据、Cookie、图片与任何需要绕过访问控制的数据。原始 HTML 仅进入不公开的 24 小时压缩缓存，
+读者性别/年龄/地域画像、版权收入、账号凭据、Cookie、图片与任何需要绕过访问控制的数据。原始 HTML 仅进入不公开的 24 小时压缩缓存，
 用于避免重复请求和结构诊断，到期可删除。
 
 ## 架构
@@ -117,3 +120,6 @@ pnpm --filter @pyuri/web test
 合作、背书或授权关系。
 
 详细可行性、字段难度、robots 与条款边界见 [docs/jjwxc-feasibility.md](docs/jjwxc-feasibility.md)。
+指标公式、覆盖要求和建模门槛见 [docs/jjwxc-research-indicator-framework.md](docs/jjwxc-research-indicator-framework.md)。
+
+禁止对网站、接口、数据库或部署基础设施实施攻击、未授权访问、恶意扫描、绕过访问控制、破坏服务可用性或自动化滥用。

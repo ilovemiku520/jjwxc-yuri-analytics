@@ -21,6 +21,7 @@ from pixiv_yuri.jjwxc.analytics import (
     correlation_matrix,
     metric_summary,
     normalized_timeline,
+    research_indicator_summary,
 )
 from pixiv_yuri.jjwxc.author_v_import import (
     MAX_AUTHOR_V_CLICK_NOVELS,
@@ -42,6 +43,7 @@ from pixiv_yuri.jjwxc.cohort_import import (
 from pixiv_yuri.jjwxc.database_catalog import (
     DataMode,
     available_snapshot_days,
+    load_author_ranking_frequency,
     load_catalog,
     load_latest_author_profiles,
     search_catalog,
@@ -73,7 +75,7 @@ from pixiv_yuri.jjwxc.ratings import (
 )
 
 NovelSort = Literal["reviews", "favorites", "points", "words", "clicks"]
-AuthorSort = Literal["favorites", "reviews", "points", "novels"]
+AuthorSort = Literal["favorites", "reviews", "points", "novels", "rankings"]
 
 
 def _require_author_import_token(provided: str | None) -> None:
@@ -174,6 +176,8 @@ class JjwxcAuthorSummary(BaseModel):
     profile_total_word_count: int | None = Field(default=None, ge=0)
     profile_total_points: int | None = Field(default=None, ge=0)
     profile_observed_at: str | None = None
+    ranking_appearance_count: int = Field(default=0, ge=0)
+    ranking_observed_day_count: int = Field(default=0, ge=0)
 
 
 class JjwxcAuthorPage(BaseModel):
@@ -232,6 +236,22 @@ class JjwxcNormalizedTrendPoint(BaseModel):
     values: dict[TimelineMetricName, int | None]
 
 
+class JjwxcResearchIndicatorSummary(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    cohort_count: int = Field(ge=0)
+    nutrition_observed_count: int = Field(ge=0)
+    nutrition_coverage_basis_points: int = Field(ge=0, le=10_000)
+    loyalty_ratio: float | None = Field(default=None, ge=0)
+    click_favorite_observed_count: int = Field(ge=0)
+    median_click_favorite_ratio: float | None = Field(default=None, ge=0)
+    serial_nutrition_observed_count: int = Field(ge=0)
+    serial_nutrition_mean: float | None = Field(default=None, ge=0)
+    completed_nutrition_observed_count: int = Field(ge=0)
+    completed_nutrition_mean: float | None = Field(default=None, ge=0)
+    completed_to_serial_nutrition_ratio: float | None = Field(default=None, ge=0)
+
+
 class JjwxcMultivariateResponse(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -255,6 +275,7 @@ class JjwxcMultivariateResponse(BaseModel):
     normalized_timeline: tuple[JjwxcNormalizedTrendPoint, ...]
     summaries: tuple[JjwxcMetricSummary, ...]
     correlation_matrix: tuple[JjwxcCorrelationCell, ...]
+    research_indicators: JjwxcResearchIndicatorSummary
 
 
 class JjwxcCohortImportRequest(BaseModel):
@@ -572,7 +593,10 @@ def register_jjwxc_routes(
     def authors(sort: AuthorSort = "favorites") -> JjwxcAuthorPage:
         catalog, data_mode = load_catalog(session_factory)
         profiles = load_latest_author_profiles(session_factory)
-        summaries = list(_author_summaries(catalog.novels, profiles).values())
+        ranking_frequency = load_author_ranking_frequency(session_factory)
+        summaries = list(
+            _author_summaries(catalog.novels, profiles, ranking_frequency).values()
+        )
         key_by_sort = {
             "favorites": lambda item: item.total_favorite_count,
             "reviews": lambda item: item.total_review_count,
@@ -582,6 +606,7 @@ def register_jjwxc_routes(
                 if item.profile_nonlocked_work_count is not None
                 else item.novel_count
             ),
+            "rankings": lambda item: item.ranking_appearance_count,
         }
         summaries.sort(key=lambda item: (-key_by_sort[sort](item), item.author_id))
         return JjwxcAuthorPage(data_mode=data_mode, sort=sort, items=tuple(summaries))
@@ -590,7 +615,8 @@ def register_jjwxc_routes(
     def author_detail(author_id: str) -> JjwxcAuthorDetail:
         catalog, _ = load_catalog(session_factory)
         profiles = load_latest_author_profiles(session_factory)
-        summaries = _author_summaries(catalog.novels, profiles)
+        ranking_frequency = load_author_ranking_frequency(session_factory)
+        summaries = _author_summaries(catalog.novels, profiles, ranking_frequency)
         author = summaries.get(author_id)
         if author is None:
             raise HTTPException(status_code=404, detail="jjwxc_author_not_found")
@@ -648,6 +674,9 @@ def register_jjwxc_routes(
             correlation_matrix=tuple(
                 JjwxcCorrelationCell.model_validate(item)
                 for item in correlation_matrix(catalog.novels)
+            ),
+            research_indicators=JjwxcResearchIndicatorSummary.model_validate(
+                research_indicator_summary(catalog.novels)
             ),
         )
 
@@ -859,6 +888,7 @@ def register_jjwxc_routes(
 def _author_summaries(
     novels: tuple[JjwxcNovel, ...],
     profiles: dict[str, JjwxcAuthorSnapshot],
+    ranking_frequency: dict[str, tuple[int, int]],
 ) -> dict[str, JjwxcAuthorSummary]:
     grouped: dict[str, list[JjwxcNovel]] = defaultdict(list)
     for novel in novels:
@@ -890,6 +920,8 @@ def _author_summaries(
             profile_observed_at=(
                 profiles[author_id].observed_at.isoformat() if author_id in profiles else None
             ),
+            ranking_appearance_count=ranking_frequency.get(author_id, (0, 0))[0],
+            ranking_observed_day_count=ranking_frequency.get(author_id, (0, 0))[1],
         )
         for author_id, novels in grouped.items()
     }
