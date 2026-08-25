@@ -324,8 +324,6 @@ def _novel_from_row(
         review_count=snapshot.review_count,
         favorite_count=snapshot.favorite_count,
         nutrition_count=snapshot.nutrition_count,
-        recommendation_count=snapshot.recommendation_count,
-        bomb_ticket_count=snapshot.bomb_ticket_count,
         points=snapshot.points,
         first_chapter_click_count=snapshot.first_chapter_click_count,
         average_non_v_chapter_click_count=snapshot.average_non_v_chapter_click_count,

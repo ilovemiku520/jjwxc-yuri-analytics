@@ -16,6 +16,7 @@ from pixiv_yuri.jjwxc.html_parser import JjwxcParseError, decode_jjwxc_html
 from pixiv_yuri.jjwxc.models import JjwxcChapterMetric, JjwxcNovelCandidate
 
 _MAX_CLICK_BYTES = 500_000
+_MAX_AGGREGATE_BYTES = 100_000
 CHANNEL_RANKING_KEYS = ("channel_gold", "newcomer")
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 
@@ -72,6 +73,17 @@ class JjwxcAuthorProfileCandidate(BaseModel):
     source_url: str = Field(
         pattern=r"^https://www\.jjwxc\.net/oneauthor\.php\?authorid=[1-9][0-9]{0,11}$"
     )
+
+
+class JjwxcNovelAggregate(BaseModel):
+    """Public counters returned by JJWXC's own work-page JSONP request."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    favorite_count: int = Field(ge=0)
+    review_count: int = Field(ge=0)
+    nutrition_count: int = Field(ge=0)
+    points: int = Field(ge=0)
 
 
 @dataclass(slots=True)
@@ -520,6 +532,43 @@ def parse_chapter_click_payload(payload: bytes) -> dict[int, int]:
     return result
 
 
+def parse_novel_aggregate_payload(payload: bytes) -> JjwxcNovelAggregate:
+    """Parse the minimized JSONP counters loaded by the public work page."""
+    if not payload or len(payload) > _MAX_AGGREGATE_BYTES:
+        raise JjwxcParseError("novel_aggregate_size_outside_boundary")
+    try:
+        source = payload.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise JjwxcParseError("novel_aggregate_decode_failed") from exc
+    match = re.fullmatch(
+        r"\s*[A-Za-z_$][A-Za-z0-9_$]*\((\{.*\})\)\s*;?\s*",
+        source,
+        re.DOTALL,
+    )
+    if match is None:
+        raise JjwxcParseError("novel_aggregate_jsonp_invalid")
+    try:
+        document = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        raise JjwxcParseError("novel_aggregate_json_invalid") from exc
+    if not isinstance(document, dict):
+        raise JjwxcParseError("novel_aggregate_document_invalid")
+
+    def count(field: str) -> int:
+        value = document.get(field)
+        normalized = str(value).replace(",", "")
+        if value is None or not normalized.isdigit():
+            raise JjwxcParseError(f"novel_aggregate_{field}_invalid")
+        return int(normalized)
+
+    return JjwxcNovelAggregate(
+        favorite_count=count("collectedCount"),
+        review_count=count("comment_count"),
+        nutrition_count=count("nutritionCount"),
+        points=count("novelscore"),
+    )
+
+
 def parse_chapter_directory(
     page_payload: bytes,
     *,
@@ -585,6 +634,21 @@ def enrich_candidate_with_chapters(
             "non_v_chapter_count": len(non_v),
             "v_chapter_count": len(vip),
             "chapter_click_coverage_count": len(non_v_clicks) + len(vip_clicks),
+        }
+    )
+
+
+def enrich_candidate_with_aggregate(
+    candidate: JjwxcNovelCandidate,
+    aggregate: JjwxcNovelAggregate,
+) -> JjwxcNovelCandidate:
+    """Overlay the page's authoritative dynamic counters before persistence."""
+    return candidate.model_copy(
+        update={
+            "favorite_count": aggregate.favorite_count,
+            "review_count": aggregate.review_count,
+            "nutrition_count": aggregate.nutrition_count,
+            "points": aggregate.points,
         }
     )
 

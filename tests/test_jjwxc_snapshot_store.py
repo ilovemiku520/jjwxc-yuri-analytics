@@ -97,6 +97,11 @@ def test_database_timeline_includes_daily_cross_sectional_distributions() -> Non
     assert favorites.top_group_count == len(novels)
     assert favorites.bottom_group_count == len(novels)
     assert favorites.median == 24_150
+    assert favorites.lower_whisker is not None
+    assert favorites.p25 is not None
+    assert favorites.median is not None
+    assert favorites.p75 is not None
+    assert favorites.upper_whisker is not None
     assert favorites.lower_whisker <= favorites.p25 <= favorites.median
     assert favorites.median <= favorites.p75 <= favorites.upper_whisker
 

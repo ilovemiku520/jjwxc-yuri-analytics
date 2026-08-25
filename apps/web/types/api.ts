@@ -417,8 +417,6 @@ export interface JjwxcNovel {
   review_count: number;
   favorite_count: number;
   nutrition_count: number | null;
-  recommendation_count: number | null;
-  bomb_ticket_count: number | null;
   points: number;
   first_chapter_click_count: number | null;
   average_non_v_chapter_click_count: number | null;

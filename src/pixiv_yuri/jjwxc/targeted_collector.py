@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "status": "dry_run",
                     "limit": args.limit,
-                    "maximum_planned_requests": args.limit * 2,
+                    "maximum_planned_requests": args.limit * 3,
                     "request_interval_seconds": args.request_interval_seconds,
                     "cache_dir": args.cache_dir,
                 },

@@ -24,8 +24,6 @@ class JjwxcNovel(BaseModel):
     review_count: int = Field(ge=0)
     favorite_count: int = Field(ge=0)
     nutrition_count: int | None = Field(default=None, ge=0)
-    recommendation_count: int | None = Field(default=None, ge=0)
-    bomb_ticket_count: int | None = Field(default=None, ge=0)
     points: int = Field(ge=0)
     first_chapter_click_count: int | None = Field(default=None, ge=0)
     average_non_v_chapter_click_count: int | None = Field(default=None, ge=0)

@@ -1979,9 +1979,16 @@ a {
 .research-kpi-grid,
 .indicator-framework {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.7rem;
   padding-top: 1rem;
+}
+
+.research-kpi-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.indicator-framework {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .research-kpi-grid article,
@@ -2038,15 +2045,6 @@ a {
 .indicator-tier.authorized {
   border-color: rgba(246, 201, 105, 0.38);
   color: #f6c969;
-}
-
-.indicator-tier.external {
-  border-color: rgba(140, 184, 255, 0.38);
-  color: #a9c9ff;
-}
-
-.indicator-tier.excluded {
-  color: var(--muted);
 }
 
 .cohort-builder {

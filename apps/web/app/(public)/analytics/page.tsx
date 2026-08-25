@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{
   novels?: string | string[];
   q?: string | string[];
+  rating_day?: string | string[];
 }>;
 
 function firstValue(value: string | string[] | undefined): string {
@@ -33,10 +34,15 @@ function selectedNovelIds(value: string): string[] {
   ).slice(0, 100);
 }
 
-function analyticsHref(ids: string[], query: string): string {
+function analyticsHref(
+  ids: string[],
+  query: string,
+  ratingDay: string,
+): string {
   const parameters = new URLSearchParams();
   if (ids.length) parameters.set("novels", ids.join(","));
   if (query) parameters.set("q", query);
+  if (ratingDay) parameters.set("rating_day", ratingDay);
   const suffix = parameters.toString();
   return suffix ? `/analytics?${suffix}` : "/analytics";
 }
@@ -49,15 +55,22 @@ export default async function AnalyticsPage({
   const parameters = await searchParams;
   const ids = selectedNovelIds(firstValue(parameters.novels));
   const query = firstValue(parameters.q).trim().slice(0, 80);
+  const requestedRatingDay = firstValue(parameters.rating_day);
+  const ratingDay = /^20[0-9]{2}-[0-9]{2}-[0-9]{2}$/u.test(requestedRatingDay)
+    ? requestedRatingDay
+    : "";
   let data: JjwxcMultivariateResponse | null = null;
   let ratings: JjwxcRatingResponse | null = null;
   let search: JjwxcSearchResponse | null = null;
   const cohortPath = ids.length
     ? `/api/v1/jjwxc/analytics/multivariate?novel_ids=${ids.join(",")}`
     : "/api/v1/jjwxc/analytics/multivariate";
+  const ratingPath = ratingDay
+    ? `/api/v1/jjwxc/analytics/ratings?day=${ratingDay}`
+    : "/api/v1/jjwxc/analytics/ratings";
   const [dataResult, ratingResult, searchResult] = await Promise.allSettled([
     fetchApi<JjwxcMultivariateResponse>(cohortPath),
-    fetchApi<JjwxcRatingResponse>("/api/v1/jjwxc/analytics/ratings"),
+    fetchApi<JjwxcRatingResponse>(ratingPath),
     query
       ? fetchApi<JjwxcSearchResponse>(
           `/api/v1/jjwxc/search?query=${encodeURIComponent(query)}&limit=20&offset=0`,
@@ -119,6 +132,9 @@ export default async function AnalyticsPage({
               {ids.length ? (
                 <input name="novels" type="hidden" value={ids.join(",")} />
               ) : null}
+              {ratingDay ? (
+                <input name="rating_day" type="hidden" value={ratingDay} />
+              ) : null}
               <label htmlFor="cohort-query">搜索作品名或作者名后加入统计</label>
               <div>
                 <input
@@ -144,6 +160,7 @@ export default async function AnalyticsPage({
                       href={analyticsHref(
                         ids.filter((item) => item !== novelId),
                         query,
+                        ratingDay,
                       )}
                       key={novelId}
                     >
@@ -151,7 +168,10 @@ export default async function AnalyticsPage({
                     </Link>
                   );
                 })}
-                <Link className="cohort-clear" href={analyticsHref([], query)}>
+                <Link
+                  className="cohort-clear"
+                  href={analyticsHref([], query, ratingDay)}
+                >
                   清空自定义集合
                 </Link>
               </div>
@@ -179,7 +199,7 @@ export default async function AnalyticsPage({
                       ) : ids.length >= 100 ? (
                         <span>已达 100 部上限</span>
                       ) : (
-                        <Link href={analyticsHref(nextIds, query)}>
+                        <Link href={analyticsHref(nextIds, query, ratingDay)}>
                           加入统计
                         </Link>
                       )}

@@ -3,12 +3,14 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from pixiv_yuri.jjwxc.catalog_parser import (
+    enrich_candidate_with_aggregate,
     enrich_candidate_with_chapters,
     parse_author_profile,
     parse_bookbase_page,
     parse_channel_catalog,
     parse_chapter_click_payload,
     parse_chapter_directory,
+    parse_novel_aggregate_payload,
 )
 from pixiv_yuri.jjwxc.html_parser import parse_novel_page
 
@@ -182,6 +184,33 @@ def test_click_jsonp_preserves_authenticated_inline_vip_clicks() -> None:
     assert enriched.chapter_click_coverage_count == 2
     assert enriched.v_to_non_v_click_retention_basis_points == 6_000
     assert enriched.first_click_to_favorite_basis_points == 250_000
+
+
+def test_public_aggregate_jsonp_overlays_dynamic_nutrition_and_counters() -> None:
+    aggregate = parse_novel_aggregate_payload(
+        b'jjyuriAggregate({"collectedCount":"31,687","novelscore":"1,207,603,968",'
+        b'"comment_count":"69479","nutritionCount":"83235"})'
+    )
+    candidate = parse_novel_page(
+        """
+        <meta charset="gb18030"><h1>《测试》</h1>
+        <a href="oneauthor.php?authorid=7">作者专栏</a><p>作者：作者甲</p>
+        <p>文章类型：原创-百合-近代现代-爱情 作品视角：互攻 文章进度：连载
+        全文字数：7,300字</p><div id="novelintro">都市成长。</div>
+        <p>内容标签： 都市 HE 主角：甲 总书评数：10 当前被收藏数：20
+        营养液数： 文章积分：30</p>
+        """.encode("gb18030"),
+        novel_id="88",
+        observed_at=datetime(2026, 8, 25, tzinfo=UTC),
+    )
+
+    enriched = enrich_candidate_with_aggregate(candidate, aggregate)
+
+    assert enriched.favorite_count == 31_687
+    assert enriched.review_count == 69_479
+    assert enriched.nutrition_count == 83_235
+    assert enriched.points == 1_207_603_968
+    assert enriched.nutrition_to_favorite_basis_points == 26_268
 
 
 def test_click_retention_proxy_preserves_missing_v_clicks() -> None:

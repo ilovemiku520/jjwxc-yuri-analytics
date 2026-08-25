@@ -156,8 +156,6 @@ def _import_one_novel(
         review_count=latest_snapshot.review_count,
         favorite_count=latest_snapshot.favorite_count,
         nutrition_count=latest_snapshot.nutrition_count,
-        recommendation_count=latest_snapshot.recommendation_count,
-        bomb_ticket_count=latest_snapshot.bomb_ticket_count,
         points=latest_snapshot.points,
         first_chapter_click_count=latest_snapshot.first_chapter_click_count,
         average_non_v_chapter_click_count=(

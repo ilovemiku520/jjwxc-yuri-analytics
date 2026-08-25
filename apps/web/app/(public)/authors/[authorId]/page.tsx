@@ -37,6 +37,9 @@ export default async function AuthorDetailPage({
         <p>
           {formatCount(author.novel_count)} 部已统计百合小说 ·{" "}
           {author.profile_locked_work_count ?? "—"} 部锁定作品已排除
+          {author.profile_observed_at
+            ? ` · 专栏快照 ${author.profile_observed_at.slice(0, 10)}`
+            : " · 专栏将在下一次定时任务优先补全"}
         </p>
       </header>
       <section className="stat-grid author-stat-grid">
@@ -113,7 +116,7 @@ function Stat({
     <article className="stat-card">
       <p className="stat-label">{label}</p>
       <p className="stat-value">
-        {value === null ? "待采集" : formatCount(value)}
+        {value === null ? "等待定时补全" : formatCount(value)}
       </p>
       <p className="stat-note">{source} · 公开聚合快照</p>
     </article>

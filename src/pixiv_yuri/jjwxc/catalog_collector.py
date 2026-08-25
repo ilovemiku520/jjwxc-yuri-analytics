@@ -24,11 +24,13 @@ from pixiv_yuri.jjwxc.catalog_parser import (
     CHANNEL_RANKING_KEYS,
     JjwxcBookbasePage,
     JjwxcChannelCatalog,
+    enrich_candidate_with_aggregate,
     enrich_candidate_with_chapters,
     parse_author_profile,
     parse_bookbase_page,
     parse_channel_catalog,
     parse_chapter_directory,
+    parse_novel_aggregate_payload,
 )
 from pixiv_yuri.jjwxc.html_parser import parse_novel_page
 from pixiv_yuri.jjwxc.persistence import (
@@ -50,6 +52,10 @@ _BOOKBASE_URL = "https://www.jjwxc.net/bookbase.php"
 _NOVEL_URL = "https://www.jjwxc.net/onebook.php?novelid={novel_id}"
 _CLICK_URL = (
     "https://s8-static.jjwxc.net/getnovelclick.php?novelid={novel_id}&jsonpcallback=novelclick"
+)
+_AGGREGATE_URL = (
+    "https://my.jjwxc.net/lib/ajax.php?action=getNovelCollectedCount"
+    "&novelid={novel_id}&callback=jjyuriAggregate"
 )
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _PRIORITIES = {
@@ -281,6 +287,22 @@ def _hydrate_discovery_queue(
             )
             network_requests += int(not page_fetch.cache_hit)
             cache_hits += int(page_fetch.cache_hit)
+            time.sleep(request_interval_seconds)
+            aggregate_fetch = cache.fetch(
+                _AGGREGATE_URL.format(novel_id=record.novel_id),
+                allowed_hosts=frozenset({"my.jjwxc.net"}),
+                expected_content_types=(
+                    "application/javascript",
+                    "text/javascript",
+                    "text/plain",
+                    "text/html",
+                ),
+                max_bytes=100_000,
+                referer=novel_url,
+            )
+            aggregate = parse_novel_aggregate_payload(aggregate_fetch.payload)
+            network_requests += int(not aggregate_fetch.cache_hit)
+            cache_hits += int(aggregate_fetch.cache_hit)
             click_payload: bytes | None = None
             try:
                 time.sleep(request_interval_seconds)
@@ -309,6 +331,7 @@ def _hydrate_discovery_queue(
             )
             if record.source_kind == "uploaded_cohort" and "百合" not in candidate.novel_type:
                 raise ValueError("novel_outside_yuri_scope")
+            candidate = enrich_candidate_with_aggregate(candidate, aggregate)
             candidate = enrich_candidate_with_chapters(candidate, chapters)
             write = store_novel_snapshot(session, candidate)
             if write.snapshot_created:
@@ -706,7 +729,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--hydrate-limit", type=int, default=25)
     parser.add_argument("--index-pages", type=int, default=10)
-    parser.add_argument("--author-limit", type=int, default=10)
+    parser.add_argument("--author-limit", type=int, default=100)
     parser.add_argument("--request-interval-seconds", type=float, default=2.0)
     parser.add_argument("--cache-ttl-hours", type=int, default=24)
     parser.add_argument("--cache-dir", default=os.getenv("JJYURI_CACHE_DIR", "var/cache/jjwxc"))
@@ -724,7 +747,7 @@ def main(argv: list[str] | None = None) -> int:
                     "index_pages": args.index_pages,
                     "author_limit": args.author_limit,
                     "maximum_planned_requests": (
-                        1 + args.index_pages + hydrate_limit * 2 + args.author_limit
+                        1 + args.index_pages + hydrate_limit * 3 + args.author_limit
                     ),
                     "ranking_keys": CHANNEL_RANKING_KEYS,
                     "cache_dir": args.cache_dir,

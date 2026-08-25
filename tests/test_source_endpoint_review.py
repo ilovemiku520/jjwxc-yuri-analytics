@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, Self
 
 import pytest
 from pydantic import ValidationError
@@ -186,7 +186,17 @@ def test_cli_missing_default_evidence_writes_machine_blocked_report() -> None:
         assert report["credentials_requested"] is False
 
 
-def test_cli_finalizes_from_local_json_without_network() -> None:
+def test_cli_finalizes_from_local_json_without_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> Self:
+            return cls.fromtimestamp(NOW.timestamp(), tz)
+
+    monkeypatch.setattr(
+        "pixiv_yuri.governance.source_endpoint_review.datetime", FixedDateTime
+    )
     with TemporaryDirectory(dir=Path.cwd() / ".tmp") as directory:
         root = Path(directory)
         g0_path = root / "g0.json"

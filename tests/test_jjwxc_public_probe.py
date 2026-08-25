@@ -44,8 +44,6 @@ def test_parser_extracts_only_minimized_public_aggregates() -> None:
     assert candidate.review_count == 321
     assert candidate.favorite_count == 4_567
     assert candidate.nutrition_count == 0
-    assert candidate.recommendation_count is None
-    assert candidate.bomb_ticket_count is None
     assert candidate.points == 89_012_345
     assert candidate.average_non_v_chapter_click_count == 12_345
     assert candidate.synopsis_char_count == 20

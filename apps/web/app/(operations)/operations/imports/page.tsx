@@ -13,8 +13,6 @@ const FIELDS = [
   "review_count",
   "favorite_count",
   "nutrition_count",
-  "recommendation_count",
-  "bomb_ticket_count",
   "first_chapter_click_count",
   "points",
   "public_tags",

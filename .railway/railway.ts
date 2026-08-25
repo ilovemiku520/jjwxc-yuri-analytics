@@ -105,7 +105,7 @@ export default defineRailway(() => {
       cronSchedule: "30 19 * * *",
       restartPolicyType: "NEVER",
       startCommand:
-        "jjyuri-jjwxc-catalog --index-pages 10 --hydrate-limit 39 --author-limit 10 --request-interval-seconds 2 --cache-dir /data/cache/jjwxc",
+        "jjyuri-jjwxc-catalog --index-pages 10 --hydrate-limit 39 --author-limit 100 --request-interval-seconds 2 --cache-dir /data/cache/jjwxc",
     },
     replicas: { [productionRegion]: 1 },
     volumeMounts: {

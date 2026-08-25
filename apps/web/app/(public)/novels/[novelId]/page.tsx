@@ -105,22 +105,6 @@ export default async function NovelDetailPage({
               <dd>{formatCount(novel.points)}</dd>
             </div>
             <div>
-              <dt>推荐数</dt>
-              <dd>
-                {novel.recommendation_count === null
-                  ? "公开响应未提供"
-                  : formatCount(novel.recommendation_count)}
-              </dd>
-            </div>
-            <div>
-              <dt>霸王票数</dt>
-              <dd>
-                {novel.bomb_ticket_count === null
-                  ? "公开响应未提供"
-                  : formatCount(novel.bomb_ticket_count)}
-              </dd>
-            </div>
-            <div>
               <dt>非 V 章节章均点击数</dt>
               <dd>
                 {novel.average_non_v_chapter_click_count === null

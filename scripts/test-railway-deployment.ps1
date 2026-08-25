@@ -115,7 +115,7 @@ if ($null -ne $daily) {
     Add-Check "daily.bounds" `
         ($indexPages -ge 1 -and $indexPages -le 10 -and
          $hydrateLimit -ge 1 -and $hydrateLimit -le 49 -and
-         $authorLimit -ge 0 -and $authorLimit -le 10 -and $interval -ge 2) `
+         $authorLimit -ge 0 -and $authorLimit -le 100 -and $interval -ge 2) `
         "index_pages=$indexPages hydrate_limit=$hydrateLimit author_limit=$authorLimit interval=$interval"
     Add-Check "daily.cron" ($daily.deploy.cronSchedule -eq "30 19 * * *") `
         "UTC 19:30 equals Asia/Shanghai 03:30 next day"

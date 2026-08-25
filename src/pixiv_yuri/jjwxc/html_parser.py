@@ -111,12 +111,6 @@ def parse_novel_page(
             text, r"当前被收藏数[：:]\s*([0-9,]+)", "favorite_count_missing"
         ),
         nutrition_count=_optional_count(text, r"营养液数[：:]?\s*([0-9,]+)"),
-        recommendation_count=_optional_count(
-            text, r"(?:作品推荐数|推荐数)[：:]?\s*([0-9,]+)"
-        ),
-        bomb_ticket_count=_optional_count(
-            text, r"(?:霸王票数|收到霸王票)[：:]?\s*([0-9,]+)"
-        ),
         points=_required_count(text, r"文章积分[：:]\s*([0-9,]+)", "points_missing"),
         average_non_v_chapter_click_count=_optional_count(
             text, r"非\s*[vVＶ]\s*章节章均点击数[：:]?\s*([0-9,]+)"

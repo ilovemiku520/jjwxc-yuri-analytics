@@ -66,30 +66,14 @@ export function ResearchIndicatorPanel({
           <h3>作品热度与创作节奏</h3>
           <p>
             收藏、书评、积分、字数、状态、题材、章节数、首章及非 V
-            点击；营养液、推荐数、霸王票仅在公开响应确有数字时保存。
+            点击；营养液由作品页自身调用的公开聚合接口获取，四项动态计数缺一时整部快照进入重试。
           </p>
         </article>
         <article>
           <span className="indicator-tier authorized">作者授权</span>
           <h3>付费转化与留存</h3>
           <p>
-            V
-            章点击、全订或订阅聚合必须由作品作者从自己的后台导入；收订比、霸王票/全订比仅在分母分子都有授权证据时计算。
-          </p>
-        </article>
-        <article>
-          <span className="indicator-tier external">外部标注</span>
-          <h3>IP 改编与商业延伸</h3>
-          <p>
-            IP
-            改编状态可由可信公开来源人工标注并附出处；版权收入属于私有商业数据，不从网页推断、不估算。
-          </p>
-        </article>
-        <article>
-          <span className="indicator-tier excluded">不采集</span>
-          <h3>个人画像与内容正文</h3>
-          <p>
-            不采集或推断读者性别、年龄、地域和身份，不保存评论正文、章节正文；文本分析仅使用公开标签和不可还原的文案统计特征。
+            V 章点击、全订或订阅聚合必须由作品作者从自己的后台导入；只有分母分子均有授权证据时才计算转化指标。
           </p>
         </article>
       </div>

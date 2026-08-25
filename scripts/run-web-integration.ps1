@@ -62,10 +62,10 @@ $accessMode = "container_internal_fallback"
 $paths = [ordered]@{
     home = "/"
     data_policy = "/about/data-policy"
-    works = "/works"
-    work_detail = "/works/synthetic-work-1001"
+    novels = "/novels"
+    novel_detail = "/novels/7630015"
     authors = "/authors"
-    author_detail = "/authors/synthetic-author-501"
+    author_detail = "/authors/1077059"
     tags = "/tags"
     tag_graph = "/tags/graph"
     tag_review = "/tags/review"
@@ -113,8 +113,8 @@ foreach ($entry in $responses.GetEnumerator()) {
 }
 $evidenceChecks = [ordered]@{
     data_policy = 'NON-COMMERCIAL'
-    works = 'Synthetic Work Alpha'
-    authors = 'Synthetic Author'
+    novel_detail = '今夜刮起台风'
+    authors = '玄笺'
     tags = 'synthetic-tag-a'
     tag_graph = 'Tag associations'
     tag_review = 'Human review evidence'

@@ -68,7 +68,10 @@ function normalizeWeights(
   weights: Partial<Record<MetricKey, number>>,
   metrics: MetricConfig[],
 ): Record<MetricKey, number> {
-  const total = metrics.reduce((sum, metric) => sum + (weights[metric.key] ?? 0), 0);
+  const total = metrics.reduce(
+    (sum, metric) => sum + (weights[metric.key] ?? 0),
+    0,
+  );
   if (total <= 0) {
     return Object.fromEntries(
       metrics.map((metric) => [metric.key, weights[metric.key] ?? 0]),
@@ -119,7 +122,13 @@ function rescore(
     );
 }
 
-function RatingRadar({ item, metrics }: { item: DisplayItem; metrics: MetricConfig[] }) {
+function RatingRadar({
+  item,
+  metrics,
+}: {
+  item: DisplayItem;
+  metrics: MetricConfig[];
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -134,7 +143,9 @@ function RatingRadar({ item, metrics }: { item: DisplayItem; metrics: MetricConf
         indicator: metrics.map((metric) => ({ name: metric.label, max: 100 })),
         axisName: { color: "#b9adb6" },
         splitLine: { lineStyle: { color: "rgba(255,255,255,.12)" } },
-        splitArea: { areaStyle: { color: ["transparent", "rgba(255,255,255,.02)"] } },
+        splitArea: {
+          areaStyle: { color: ["transparent", "rgba(255,255,255,.02)"] },
+        },
         axisLine: { lineStyle: { color: "rgba(255,255,255,.12)" } },
       },
       series: [
@@ -174,22 +185,30 @@ function RatingRadar({ item, metrics }: { item: DisplayItem; metrics: MetricConf
 export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
   const [kind, setKind] = useState<EntityKind>("novels");
   const [day, setDay] = useState(data.selected_day);
-  const [novelWeights, setNovelWeights] = useState<Partial<Record<MetricKey, number>>>(
-    data.default_weights,
-  );
-  const [authorWeights, setAuthorWeights] = useState<Partial<Record<MetricKey, number>>>(
-    data.author_default_weights,
-  );
+  const [novelWeights, setNovelWeights] = useState<
+    Partial<Record<MetricKey, number>>
+  >(data.default_weights);
+  const [authorWeights, setAuthorWeights] = useState<
+    Partial<Record<MetricKey, number>>
+  >(data.author_default_weights);
   const metrics = kind === "novels" ? novelMetrics : authorMetrics;
   const weights = kind === "novels" ? novelWeights : authorWeights;
-  const sourceItems: DisplayItem[] = kind === "novels" ? data.novels : data.authors;
+  const sourceItems: DisplayItem[] =
+    kind === "novels" ? data.novels : data.authors;
   const ranked = useMemo(
     () => rescore(sourceItems, weights, metrics, kind),
     [kind, metrics, sourceItems, weights],
   );
   const [selectedId, setSelectedId] = useState(ranked[0]?.entity_id ?? "");
-  const selected = ranked.find((item) => item.entity_id === selectedId) ?? ranked[0];
+  const selected =
+    ranked.find((item) => item.entity_id === selectedId) ?? ranked[0];
   const normalized = normalizeWeights(weights, metrics);
+
+  function selectKind(nextKind: EntityKind) {
+    setKind(nextKind);
+    const nextItems = nextKind === "novels" ? data.novels : data.authors;
+    setSelectedId(nextItems[0]?.entity_id ?? "");
+  }
 
   function updateWeight(metric: MetricKey, value: number) {
     if (kind === "novels") {
@@ -200,7 +219,10 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
   }
 
   return (
-    <section className="chart-panel rating-panel" aria-labelledby="rating-title">
+    <section
+      className="chart-panel rating-panel"
+      aria-labelledby="rating-title"
+    >
       <div className="panel-heading">
         <div>
           <p className="eyebrow">ADJUSTABLE COHORT RATING · SSS—B</p>
@@ -214,21 +236,43 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
           <button
             type="button"
             aria-pressed={kind === "novels"}
-            onClick={() => setKind("novels")}
+            onClick={() => selectKind("novels")}
           >
             作品
           </button>
           <button
             type="button"
             aria-pressed={kind === "authors"}
-            onClick={() => setKind("authors")}
+            onClick={() => selectKind("authors")}
           >
             作者
           </button>
         </div>
         <label className="rating-day">
+          <span>{kind === "novels" ? "雷达图作品" : "雷达图作者"}</span>
+          <select
+            value={selected?.entity_id ?? ""}
+            onChange={(event) => setSelectedId(event.target.value)}
+          >
+            {ranked.map((item) => (
+              <option key={item.entity_id} value={item.entity_id}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="rating-day">
           <span>统计时间</span>
-          <select value={day} onChange={(event) => setDay(event.target.value)}>
+          <select
+            value={day}
+            onChange={(event) => {
+              const nextDay = event.target.value;
+              setDay(nextDay);
+              const url = new URL(window.location.href);
+              url.searchParams.set("rating_day", nextDay);
+              window.location.assign(url.toString());
+            }}
+          >
             {data.available_days.map((availableDay) => (
               <option key={availableDay} value={availableDay}>
                 {availableDay}
@@ -272,7 +316,10 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
       </div>
 
       <div className="rating-grid">
-        <div className="rating-ranking" aria-label={`${kind === "novels" ? "作品" : "作者"}评分排行`}>
+        <div
+          className="rating-ranking"
+          aria-label={`${kind === "novels" ? "作品" : "作者"}评分排行`}
+        >
           {ranked.map((item, index) => (
             <button
               key={item.entity_id}
@@ -280,14 +327,20 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
               aria-pressed={selected?.entity_id === item.entity_id}
               onClick={() => setSelectedId(item.entity_id)}
             >
-              <span className="rank-number">{String(index + 1).padStart(2, "0")}</span>
+              <span className="rank-number">
+                {String(index + 1).padStart(2, "0")}
+              </span>
               <span>
                 <strong>{item.title}</strong>
                 <small>
-                  {kind === "novels" ? item.author_display_name : `${item.coverage_basis_points / 100}% 数据覆盖`}
+                  {kind === "novels"
+                    ? item.author_display_name
+                    : `${item.coverage_basis_points / 100}% 数据覆盖`}
                 </small>
               </span>
-              <span className={`rating-grade grade-${item.grade.toLowerCase()}`}>
+              <span
+                className={`rating-grade grade-${item.grade.toLowerCase()}`}
+              >
                 {item.grade}
               </span>
               <span>{(item.score_basis_points / 100).toFixed(1)}</span>
@@ -298,9 +351,14 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
           <div className="radar-panel">
             <div>
               <p className="eyebrow">FIVE-DIMENSION PROFILE</p>
-              <h3>{selected.title}</h3>
+              <h3>
+                {kind === "novels" ? "作品雷达图" : "作者雷达图"} ·{" "}
+                {selected.title}
+              </h3>
               <p>
-                综合分 {(selected.score_basis_points / 100).toFixed(1)} · {selected.grade} · 数据覆盖 {selected.coverage_basis_points / 100}%
+                综合分 {(selected.score_basis_points / 100).toFixed(1)} ·{" "}
+                {selected.grade} · 数据覆盖{" "}
+                {selected.coverage_basis_points / 100}%
               </p>
             </div>
             {kind === "authors" && selected.raw_values ? (
@@ -311,7 +369,7 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
                     <dd>
                       {selected.raw_values?.[metric.key] === null ||
                       selected.raw_values?.[metric.key] === undefined
-                        ? "待专栏采集"
+                        ? "等待定时补全"
                         : formatCount(selected.raw_values[metric.key] ?? 0)}
                     </dd>
                   </div>
@@ -324,8 +382,9 @@ export function RatingExplorer({ data }: { data: JjwxcRatingResponse }) {
       </div>
 
       <p className="analysis-note">
-        默认权重 = 产品含义先验 × 覆盖率、变异系数与相关冗余修正；指标先取 log(1+x)
-        后转为同批样本百分位。等级阈值为 SSS ≥ 90、SS ≥ 80、S ≥ 65、A ≥ 45、其余 B。
+        默认权重 = 产品含义先验 × 覆盖率、变异系数与相关冗余修正；指标先取
+        log(1+x) 后转为同批样本百分位。等级阈值为 SSS ≥ 90、SS ≥ 80、S ≥ 65、A ≥
+        45、其余 B。
         当前只有一个已保存日期；每日快照累积后，统计时间会自动出现更多可选日期。
       </p>
     </section>

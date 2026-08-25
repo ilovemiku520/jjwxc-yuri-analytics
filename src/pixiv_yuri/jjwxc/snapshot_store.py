@@ -69,8 +69,6 @@ def store_novel_snapshot(session: Session, novel: JjwxcNovel) -> JjwxcSnapshotWr
         review_count=novel.review_count,
         favorite_count=novel.favorite_count,
         nutrition_count=novel.nutrition_count,
-        recommendation_count=novel.recommendation_count,
-        bomb_ticket_count=novel.bomb_ticket_count,
         points=novel.points,
         first_chapter_click_count=novel.first_chapter_click_count,
         average_non_v_chapter_click_count=novel.average_non_v_chapter_click_count,

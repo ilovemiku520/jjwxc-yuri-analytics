@@ -20,7 +20,7 @@
 - 交互式小说分析：按收藏、书评、积分、字数或章均点击排序；
 - 作者分析：按作品总收藏、总书评、总积分和作品数排行；
 - 作者专栏快照：采集非锁定/锁定作品数、作者被收藏数、非锁定作品总字数与总积分；
-- 读者投入指标：在公开响应确有数字时保存营养液、推荐数、霸王票与首章点击，计算忠诚率和首章点收比；
+- 读者投入指标：通过作品页自身调用的公开聚合 JSONP 保存营养液，并结合首章点击计算忠诚率和首章点收比；
 - 作者竞争力：汇总频道金榜与新手金榜的上榜次数和观测日数；
 - 趋势可视化：按日展示 Top/Bottom 10 均值、Tukey 时序箱型图、样本量与异常值，并支持最多三个指标的原值或基准指数对比；
 - 变量分析：成对完整样本相关矩阵，以及可调样本量的 Pearson、Spearman、一阶矩和二阶矩比较；
@@ -42,7 +42,7 @@
 
 `novel_id`、`title`、`author_id`、`author_display_name`、`novel_type`、`perspective`、
 `status`、`word_count`、`review_count`、`favorite_count`、可空的 `nutrition_count`、
-`recommendation_count`、`bomb_ticket_count`、`first_chapter_click_count`、`points`、
+`first_chapter_click_count`、`points`、
 `average_non_v_chapter_click_count`（可空）、`average_v_chapter_click_count`（可空）、V/非 V 章节数、
 逐章 `chapter_id`、字数与公开点击（可空）、`synopsis_char_count`、`synopsis_sentence_count`、
 `synopsis_theme_terms`、`public_tags`、双榜单位置、作者专栏公开聚合指标、`observed_at`。
@@ -57,7 +57,7 @@
 ## 架构
 
 ```text
-JJWXC 百合频道 + 公开作品页 + 页面静态点击响应（默认禁用网络）
+JJWXC 百合频道 + 公开作品页 + 页面聚合/点击 JSONP（默认禁用网络）
           │ 单并发、限速、无登录、24h 私有缓存
           ▼
  双榜发现 + 可恢复队列 + 最小字段/章节解析

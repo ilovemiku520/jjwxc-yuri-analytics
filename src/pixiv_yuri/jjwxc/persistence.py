@@ -159,14 +159,6 @@ class JjwxcNovelSnapshot(Base):
             name="nonnegative_jjwxc_snapshot_nutrition",
         ),
         CheckConstraint(
-            "recommendation_count IS NULL OR recommendation_count >= 0",
-            name="nonnegative_jjwxc_snapshot_recommendations",
-        ),
-        CheckConstraint(
-            "bomb_ticket_count IS NULL OR bomb_ticket_count >= 0",
-            name="nonnegative_jjwxc_snapshot_bomb_tickets",
-        ),
-        CheckConstraint(
             "first_chapter_click_count IS NULL OR first_chapter_click_count >= 0",
             name="nonnegative_jjwxc_snapshot_first_clicks",
         ),
@@ -214,8 +206,6 @@ class JjwxcNovelSnapshot(Base):
     review_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
     favorite_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
     nutrition_count: Mapped[int | None] = mapped_column(BigInteger)
-    recommendation_count: Mapped[int | None] = mapped_column(BigInteger)
-    bomb_ticket_count: Mapped[int | None] = mapped_column(BigInteger)
     points: Mapped[int] = mapped_column(BigInteger, nullable=False)
     first_chapter_click_count: Mapped[int | None] = mapped_column(BigInteger)
     average_non_v_chapter_click_count: Mapped[int | None] = mapped_column(BigInteger)
